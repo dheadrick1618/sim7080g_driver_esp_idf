@@ -598,6 +598,11 @@ esp_err_t sim7080g_connect_to_network_bearer(const sim7080g_handle_t *sim7080g_h
     char current_apn[32];
     int apn_len = sizeof(current_apn);
     err = sim7080g_get_apn(sim7080g_handle, current_apn, apn_len);
+    if(err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error getting APN: %s", esp_err_to_name(err));
+        return err;
+    }
 
     err = sim7080g_set_apn(sim7080g_handle, apn);
     if (err != ESP_OK)
@@ -624,6 +629,7 @@ esp_err_t sim7080g_connect_to_network_bearer(const sim7080g_handle_t *sim7080g_h
         return err;
     }
 
+    // TODO DEBUG THIS - Somehow this can be reached when the network is not actually connected
     ESP_LOGI(TAG, "Network bearer connected successfully");
     return ESP_OK;
 }
