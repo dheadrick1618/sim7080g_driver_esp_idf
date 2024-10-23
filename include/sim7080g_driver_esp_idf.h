@@ -39,15 +39,37 @@ typedef struct
     bool initialized;
 } sim7080g_handle_t;
 
-/// @brief Creates a device handle with the provided configuration
-/// @note This must be called before a device handle can be used
+/// @brief Creates a device handle that stores the provided configurations
+/// @note This must be called before a device can be init
 /// @param sim7080g_handle
 /// @param sim7080g_uart_config
 /// @param sim7080g_mqtt_config
 /// @return
-esp_err_t sim7080g_init(sim7080g_handle_t *sim7080g_handle,
-                        const sim7080g_uart_config_t sim7080g_uart_config,
-                        const sim7080g_mqtt_config_t sim7080g_mqtt_config);
+esp_err_t sim7080g_config(sim7080g_handle_t *sim7080g_handle,
+                          const sim7080g_uart_config_t sim7080g_uart_config,
+                          const sim7080g_mqtt_config_t sim7080g_mqtt_config);
+
+/// @brief Use configured UART and MQTT settings to initialize drivers for this device
+/// @note This can only be called after a handle is configured
+/// @param sim7080g_handle
+/// @return
+esp_err_t sim7080g_init(sim7080g_handle_t *sim7080g_handle);
 
 esp_err_t sim7080g_deinit(sim7080g_handle_t *sim7080g_handle);
 
+esp_err_t sim7080g_check_sim_status(const sim7080g_handle_t *sim7080g_handle);
+
+esp_err_t sim7080g_check_signal_quality(const sim7080g_handle_t *sim7080g_handle,
+                                        int8_t *rssi_out,
+                                        uint8_t *ber_out);
+
+/// REPLACES WHAT WAS ORIGINALLY CALLED 'CHECK NETWORK CONFIGURATION' fxn
+esp_err_t sim7080g_get_gprs_attach_status(const sim7080g_handle_t *sim7080g_handle,
+                                          bool *attached_out);
+
+///...... Other functions for interacting with and configure device
+// TODO - Create a 'SIM' config struct that holds the SIM card APN (for now - later we can add more)
+esp_err_t sim7080g_connect_to_network_bearer(const sim7080g_handle_t *sim7080g_handle);
+
+/// @brief Test the UART connection by sending a command and checking for a response
+bool sim7080g_test_uart_loopback(sim7080g_handle_t *sim7080g_handle);
