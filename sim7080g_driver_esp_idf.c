@@ -75,6 +75,12 @@ esp_err_t sim7080g_init(sim7080g_handle_t *sim7080g_handle)
 
 esp_err_t sim7080g_check_sim_status(const sim7080g_handle_t *sim7080g_handle)
 {
+    if (!sim7080g_handle)
+    {
+        ESP_LOGE(TAG, "Invalid parameters");
+        return ESP_ERR_INVALID_ARG;
+    }
+
     char response[AT_RESPONSE_MAX_LEN] = {0};
     esp_err_t ret = send_at_cmd(sim7080g_handle, &AT_CPIN, AT_CMD_TYPE_READ, NULL, response, sizeof(response), 5000);
     if (ret == ESP_OK)
@@ -97,7 +103,6 @@ esp_err_t sim7080g_check_signal_quality(const sim7080g_handle_t *sim7080g_handle
                                         int8_t *rssi_out,
                                         uint8_t *ber_out)
 {
-    // Input validation
     if (!sim7080g_handle || !rssi_out || !ber_out)
     {
         ESP_LOGE(TAG, "Invalid parameters");
@@ -180,7 +185,6 @@ esp_err_t sim7080g_check_signal_quality(const sim7080g_handle_t *sim7080g_handle
 esp_err_t sim7080g_get_gprs_attach_status(const sim7080g_handle_t *sim7080g_handle,
                                           bool *attached_out)
 {
-    // Input validation
     if (!sim7080g_handle || !attached_out)
     {
         ESP_LOGE(TAG, "Invalid parameters");
@@ -189,15 +193,14 @@ esp_err_t sim7080g_get_gprs_attach_status(const sim7080g_handle_t *sim7080g_hand
 
     char response[AT_RESPONSE_MAX_LEN] = {0};
 
-    // Send AT+CGATT? command with 75 second timeout as per documentation
     esp_err_t ret = send_at_cmd(sim7080g_handle,
                                 &AT_CGATT,
                                 AT_CMD_TYPE_READ,
                                 NULL,
                                 response,
                                 sizeof(response),
-                                15000); // 75 seconds as per spec
-                                        // TODO - 75 seconds is spec
+                                15000);
+    // TODO - 75 seconds is spec - but this is a long time to wait in REAL life...
 
     if (ret == ESP_OK)
     {
@@ -438,7 +441,6 @@ esp_err_t sim7080g_get_app_network_active(const sim7080g_handle_t *sim7080g_hand
                                           char *address,
                                           int address_len)
 {
-    // Input validation
     if (!sim7080g_handle || !status || !address || address_len <= 0)
     {
         ESP_LOGE(TAG, "Invalid parameters");
@@ -628,7 +630,6 @@ esp_err_t sim7080g_connect_to_network_bearer(const sim7080g_handle_t *sim7080g_h
 
 esp_err_t sim7080g_mqtt_set_parameters(const sim7080g_handle_t *sim7080g_handle)
 {
-    // Input validation
     if (!sim7080g_handle)
     {
         ESP_LOGE(TAG, "Invalid device handle");
@@ -746,7 +747,7 @@ esp_err_t sim7080g_mqtt_set_parameters(const sim7080g_handle_t *sim7080g_handle)
     } default_params[] = {
         {"KEEPTIME", "60"}, // 60 second keepalive
         {"CLEANSS", "1"},   // Clean session enabled
-        {"QOS", "1"},       // QoS 1 default
+        {"QOS", "0"},       // QoS 1 default
         {"RETAIN", "0"},    // Don't retain messages
         {"SUBHEX", "0"},    // Normal (not hex) subscribe data
         {"ASYNCMODE", "0"}  // Synchronous mode
@@ -949,6 +950,133 @@ esp_err_t sim7080g_mqtt_get_broker_connection_status(
 
     ESP_LOGE(TAG, "Failed to check MQTT broker connection status: %d", ret);
     return ret;
+}
+
+esp_err_t sim7080g_mqtt_publish(const sim7080g_handle_t *sim7080g_handle,
+                                const char *topic,
+                                const char *message,
+                                uint8_t qos,
+                                bool retain)
+{
+    if (!sim7080g_handle || !topic || !message)
+    {
+        ESP_LOGE(TAG, "Invalid parameters");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (qos > 2)
+    {
+        ESP_LOGE(TAG, "Invalid QoS value: %d", qos);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Get message length
+    size_t message_len = strlen(message);
+    if (message_len == 0)
+    {
+        ESP_LOGW(TAG, "Empty message content");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // First construct and send the publish command
+    char cmd[256] = {0};
+    if (snprintf(cmd, sizeof(cmd), "AT+SMPUB=\"%s\",%zu,%d,%d\r\n",
+                 topic,
+                 message_len,
+                 qos,
+                 retain ? 1 : 0) >= sizeof(cmd))
+    {
+        ESP_LOGE(TAG, "Publish command too long");
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    ESP_LOGI(TAG, "Sending MQTT publish command: %s", cmd);
+
+    // Send command and wait for '>' prompt
+    int bytes_written = uart_write_bytes(sim7080g_handle->uart_config.port_num,
+                                         cmd,
+                                         strlen(cmd));
+    if (bytes_written != strlen(cmd))
+    {
+        ESP_LOGE(TAG, "Failed to send complete publish command");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    // Wait for '>' prompt with timeout
+    char response[256] = {0};
+    int bytes_read = uart_read_bytes(sim7080g_handle->uart_config.port_num,
+                                     response,
+                                     sizeof(response) - 1,
+                                     pdMS_TO_TICKS(1000));
+
+    if (bytes_read <= 0)
+    {
+        ESP_LOGE(TAG, "Timeout waiting for '>' prompt");
+        return ESP_ERR_TIMEOUT;
+    }
+
+    response[bytes_read] = '\0';
+    ESP_LOGD(TAG, "Response after publish command: %s", response);
+
+    if (strstr(response, ">") == NULL)
+    {
+        ESP_LOGE(TAG, "Did not receive '>' prompt");
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // Now send the actual message content
+    ESP_LOGI(TAG, "Sending message content (length %zu bytes)", message_len);
+    ESP_LOGD(TAG, "Message: %s", message);
+
+    bytes_written = uart_write_bytes(sim7080g_handle->uart_config.port_num,
+                                     message,
+                                     message_len);
+    if (bytes_written != message_len)
+    {
+        ESP_LOGE(TAG, "Failed to send complete message content");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    memset(response, 0, sizeof(response));
+    bytes_read = uart_read_bytes(sim7080g_handle->uart_config.port_num,
+                                 response,
+                                 sizeof(response) - 1,
+                                 pdMS_TO_TICKS(5000));
+
+    if (bytes_read <= 0)
+    {
+        ESP_LOGE(TAG, "Timeout waiting for publish confirmation");
+        return ESP_ERR_TIMEOUT;
+    }
+
+    response[bytes_read] = '\0';
+    ESP_LOGD(TAG, "Publish response: %s", response);
+
+    if (strstr(response, "ERROR") != NULL)
+    {
+        char *error_start = strstr(response, "+CME ERROR:");
+        if (error_start)
+        {
+            int error_code;
+            if (sscanf(error_start, "+CME ERROR: %d", &error_code) == 1)
+            {
+                ESP_LOGE(TAG, "Publish failed with CME ERROR: %d", error_code);
+                return ESP_ERR_INVALID_RESPONSE;
+            }
+        }
+        ESP_LOGE(TAG, "Publish failed with ERROR response");
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    if (strstr(response, "OK") == NULL)
+    {
+        ESP_LOGE(TAG, "Did not receive OK response");
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    ESP_LOGI(TAG, "Successfully published %zu bytes to topic '%s'",
+             message_len, topic);
+    return ESP_OK;
 }
 
 // ---------------------  INTERNAL HELPER / STATIC FXNs  ---------------------//

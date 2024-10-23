@@ -56,11 +56,12 @@ typedef enum
 
 /**
  * @brief Structure to hold all MQTT parameters
+ * @note  DO NOT INCLUDE the 'mqtt://' protocol prefix OR port number in the URL
  * @note  NOTE used for config as of now (just for runtime value checking and logging) - the user only sets the config struct
  */
 typedef struct
 {
-    char broker_url[MQTT_BROKER_URL_MAX_CHARS];
+    char broker_url[MQTT_BROKER_URL_MAX_CHARS]; // NOTE: DO NOT INCLUDE the 'mqtt://' protocol prefix OR port num in the URL
     uint16_t port;
     char client_id[MQTT_BROKER_CLIENT_ID_MAX_CHARS];
     char username[MQTT_BROKER_USERNAME_MAX_CHARS];
@@ -160,6 +161,12 @@ static esp_err_t mqtt_query_parameter(const sim7080g_handle_t *sim7080g_handle,
 esp_err_t sim7080g_mqtt_get_broker_connection_status(
     const sim7080g_handle_t *sim7080g_handle,
     sim7080g_mqtt_connection_status_t *status_out);
+
+esp_err_t sim7080g_mqtt_publish(const sim7080g_handle_t *sim7080g_handle,
+                                const char *topic,
+                                const char *message,
+                                uint8_t qos,
+                                bool retain);
 
 /// @brief Test the UART connection by sending a command and checking for a response
 bool sim7080g_test_uart_loopback(sim7080g_handle_t *sim7080g_handle);
