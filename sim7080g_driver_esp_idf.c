@@ -349,7 +349,6 @@ esp_err_t sim7080g_get_operator_info(const sim7080g_handle_t *sim7080g_handle,
 
     return ret;
 }
-
 esp_err_t sim7080g_get_apn(const sim7080g_handle_t *sim7080g_handle, char *apn, int apn_len)
 {
     if (!sim7080g_handle || !apn || apn_len <= 0)
@@ -359,34 +358,64 @@ esp_err_t sim7080g_get_apn(const sim7080g_handle_t *sim7080g_handle, char *apn, 
     }
 
     char response[AT_RESPONSE_MAX_LEN] = {0};
-    esp_err_t err = send_at_cmd(sim7080g_handle, &AT_CGNAPN, AT_CMD_TYPE_EXECUTE, NULL, response, sizeof(response), 5000);
-    if (err == ESP_OK)
+    esp_err_t err = send_at_cmd(sim7080g_handle, &AT_CGNAPN, AT_CMD_TYPE_EXECUTE, NULL, response, sizeof(response), 8000);
+    if (err != ESP_OK)
     {
-        int valid;
-        char apn_str[64] = {0};
-        if (sscanf(response, "+CGNAPN: %d,\"%63[^\"]\"", &valid, apn_str) == 2)
+        ESP_LOGE(TAG, "Failed to send AT command");
+        return err;
+    }
+
+    // Check if response contains "+CGNAPN:"
+    char *cgnapn_start = strstr(response, "+CGNAPN:");
+    if (!cgnapn_start)
+    {
+        ESP_LOGE(TAG, "No CGNAPN response found");
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // Parse using strtok to handle potential variations in response format
+    char *line = strtok(cgnapn_start, "\r\n");
+    if (!line)
+    {
+        ESP_LOGE(TAG, "Failed to tokenize response");
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    int valid;
+    char apn_str[64] = {0};
+    
+    // Try different parsing approaches
+    if (sscanf(line, "+CGNAPN: %d,\"%63[^\"]\"", &valid, apn_str) == 2)
+    {
+        // Standard format: +CGNAPN: 1,"simbase"
+        if (valid != 1)
         {
-            if (valid == 1)
-            {
-                strncpy(apn, apn_str, apn_len - 1);
-                apn[apn_len - 1] = '\0';
-                ESP_LOGI(TAG, "APN: %s", apn);
-                return ESP_OK;
-            }
-            else
-            {
-                ESP_LOGW(TAG, "No APN available");
-                return ESP_ERR_NOT_FOUND;
-            }
-        }
-        else
-        {
-            ESP_LOGE(TAG, "Failed to parse APN response: %s", response);
-            return ESP_ERR_INVALID_RESPONSE;
+            ESP_LOGW(TAG, "APN not valid (valid=%d)", valid);
+            return ESP_ERR_NOT_FOUND;
         }
     }
-    ESP_LOGE(TAG, "Failed to get APN");
-    return err;
+    else if (sscanf(line, "+CGNAPN: \"%63[^\"]\"", apn_str) == 1)
+    {
+        // Alternative format without valid flag: +CGNAPN: "simbase"
+        valid = 1;
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Failed to parse APN response format: %s", line);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // Copy the APN if we got here
+    if (strlen(apn_str) > 0)
+    {
+        strncpy(apn, apn_str, apn_len - 1);
+        apn[apn_len - 1] = '\0';
+        ESP_LOGI(TAG, "Successfully parsed APN: %s", apn);
+        return ESP_OK;
+    }
+
+    ESP_LOGE(TAG, "No valid APN found in response");
+    return ESP_ERR_NOT_FOUND;
 }
 
 esp_err_t sim7080g_set_apn(const sim7080g_handle_t *sim7080g_handle, const char *apn)
