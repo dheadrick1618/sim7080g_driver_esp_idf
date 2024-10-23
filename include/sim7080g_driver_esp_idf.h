@@ -32,11 +32,34 @@ typedef struct
     uint16_t port;
 } sim7080g_mqtt_config_t;
 
+/**
+ * @brief MQTT broker connection status values
+ */
+typedef enum
+{
+    MQTT_STATUS_DISCONNECTED = 0,      // Not connected to broker
+    MQTT_STATUS_CONNECTED = 1,         // Connected to broker
+    MQTT_STATUS_CONNECTED_SESSION = 2, // Connected with session present
+    MQTT_STATUS_MAX = 3
+} sim7080g_mqtt_connection_status_t;
+
+typedef enum
+{
+    MQTT_ERR_NONE = 0,
+    MQTT_ERR_NETWORK = 1,     // Network error
+    MQTT_ERR_PROTOCOL = 2,    // Protocol error
+    MQTT_ERR_UNAVAILABLE = 3, // Server unavailable
+    MQTT_ERR_TIMEOUT = 4,     // Connection timeout
+    MQTT_ERR_REJECTED = 5,    // Connection rejected
+    MQTT_ERR_UNKNOWN = 99     // Unknown error
+} mqtt_error_code_t;
+
 typedef struct
 {
     sim7080g_uart_config_t uart_config;
     sim7080g_mqtt_config_t mqtt_config;
-    bool initialized;
+    bool uart_initialized;
+    bool mqtt_initialized;
 } sim7080g_handle_t;
 
 /// @brief Creates a device handle that stores the provided configurations
@@ -67,9 +90,43 @@ esp_err_t sim7080g_check_signal_quality(const sim7080g_handle_t *sim7080g_handle
 esp_err_t sim7080g_get_gprs_attach_status(const sim7080g_handle_t *sim7080g_handle,
                                           bool *attached_out);
 
+esp_err_t sim7080g_get_operator_info(const sim7080g_handle_t *sim7080g_handle,
+                                     int *operator_code,
+                                     int *operator_format,
+                                     char *operator_name,
+                                     int operator_name_len);
+
+esp_err_t sim7080g_get_apn(const sim7080g_handle_t *sim7080g_handle, char *apn, int apn_len);
+
+esp_err_t sim7080g_set_apn(const sim7080g_handle_t *sim7080g_handle, const char *apn);
+
+esp_err_t sim7080g_app_network_activate(const sim7080g_handle_t *sim7080g_handle);
+
+esp_err_t sim7080g_get_app_network_active(const sim7080g_handle_t *sim7080g_handle,
+                                          int pdpidx,
+                                          int *status,
+                                          char *address,
+                                          int address_len);
+
 ///...... Other functions for interacting with and configure device
 // TODO - Create a 'SIM' config struct that holds the SIM card APN (for now - later we can add more)
-esp_err_t sim7080g_connect_to_network_bearer(const sim7080g_handle_t *sim7080g_handle);
+
+/// @brief Send series of AT commands to set the device various network settings to connect to LTE network bearer
+/// @param sim7080g_handle
+/// @param apn
+/// @return
+esp_err_t sim7080g_connect_to_network_bearer(const sim7080g_handle_t *sim7080g_handle, const char *apn);
+
+/// @brief Send Series of AT commands to set the device MQTT values to match the driver handle config values
+/// @param sim7080g_handle
+/// @return
+esp_err_t sim7080g_mqtt_set_parameters(const sim7080g_handle_t *sim7080g_handle);
+
+esp_err_t sim7080g_mqtt_connect_to_broker(const sim7080g_handle_t *sim7080g_handle);
+
+esp_err_t sim7080g_mqtt_get_broker_connection_status(
+    const sim7080g_handle_t *sim7080g_handle,
+    sim7080g_mqtt_connection_status_t *status_out);
 
 /// @brief Test the UART connection by sending a command and checking for a response
 bool sim7080g_test_uart_loopback(sim7080g_handle_t *sim7080g_handle);
