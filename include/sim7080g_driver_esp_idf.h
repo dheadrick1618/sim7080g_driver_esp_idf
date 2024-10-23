@@ -54,6 +54,25 @@ typedef enum
     MQTT_ERR_UNKNOWN = 99     // Unknown error
 } mqtt_error_code_t;
 
+/**
+ * @brief Structure to hold all MQTT parameters
+ * @note  NOTE used for config as of now (just for runtime value checking and logging) - the user only sets the config struct
+ */
+typedef struct
+{
+    char broker_url[MQTT_BROKER_URL_MAX_CHARS];
+    uint16_t port;
+    char client_id[MQTT_BROKER_CLIENT_ID_MAX_CHARS];
+    char username[MQTT_BROKER_USERNAME_MAX_CHARS];
+    char client_password[MQTT_BROKER_PASSWORD_MAX_CHARS];
+    uint16_t keepalive;
+    bool clean_session;
+    uint8_t qos;
+    bool retain;
+    bool sub_hex;
+    bool async_mode;
+} mqtt_parameters_t;
+
 typedef struct
 {
     sim7080g_uart_config_t uart_config;
@@ -122,7 +141,21 @@ esp_err_t sim7080g_connect_to_network_bearer(const sim7080g_handle_t *sim7080g_h
 /// @return
 esp_err_t sim7080g_mqtt_set_parameters(const sim7080g_handle_t *sim7080g_handle);
 
+/// @brief Uses a single AT command to get the current MQTT parameters from the device
+/// @note THE mqtt_parameters_t struct is used to store the values THIS IS NOT THE SAME AS THE CONFIG STRUCT
+/// @param sim7080g_handle
+/// @param params_out
+/// @return
+esp_err_t sim7080g_mqtt_get_parameters(const sim7080g_handle_t *sim7080g_handle,
+                                       mqtt_parameters_t *params_out);
+
 esp_err_t sim7080g_mqtt_connect_to_broker(const sim7080g_handle_t *sim7080g_handle);
+
+static esp_err_t mqtt_query_parameter(const sim7080g_handle_t *sim7080g_handle,
+                                      const char *param_name,
+                                      char *value_out,
+                                      size_t value_size,
+                                      uint16_t *port_out);
 
 esp_err_t sim7080g_mqtt_get_broker_connection_status(
     const sim7080g_handle_t *sim7080g_handle,

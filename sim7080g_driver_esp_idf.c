@@ -23,6 +23,8 @@ static esp_err_t send_at_cmd(const sim7080g_handle_t *sim7080g_handle,
                              char *response,
                              size_t response_size,
                              uint32_t timeout_ms);
+static esp_err_t sim7080g_mqtt_check_parameters_match(const sim7080g_handle_t *sim7080g_handle,
+                                                      bool *params_match_out);
 
 esp_err_t sim7080g_config(sim7080g_handle_t *sim7080g_handle,
                           const sim7080g_uart_config_t sim7080g_uart_config,
@@ -49,14 +51,23 @@ esp_err_t sim7080g_init(sim7080g_handle_t *sim7080g_handle)
     }
     sim7080g_handle->uart_initialized = true;
 
-    // TODO - Check if device params are already confgiured the same, if so, skip (to SAVE TIME)
-    // THE sim7080g can remain powered and init while the ESP32 restarts - so it may be necessary to always set the mqtt params on driver init
-    err = sim7080g_mqtt_set_parameters(sim7080g_handle);
-    if (err != ESP_OK)
+    // The sim7080g can remain powered and init while the ESP32 restarts - so it may be necessary to always set the mqtt params on driver init
+    bool params_match;
+    sim7080g_mqtt_check_parameters_match(sim7080g_handle, &params_match);
+    if (params_match == true)
     {
-        ESP_LOGE(TAG, "Error init MQTT for device (writing config params to sim7080g): %s", esp_err_to_name(err));
-        return err;
+        ESP_LOGI(TAG, "Device MQTT parameters already match config params - skipping MQTT set params on init");
     }
+    else
+    {
+        err = sim7080g_mqtt_set_parameters(sim7080g_handle);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Error init MQTT for device (writing config params to sim7080g): %s", esp_err_to_name(err));
+            return err;
+        }
+    }
+
     sim7080g_handle->mqtt_initialized = true;
 
     return ESP_OK;
@@ -1037,6 +1048,8 @@ static esp_err_t send_at_cmd(const sim7080g_handle_t *sim7080g_handle,
             continue;
         }
 
+        ESP_LOGI(TAG, "Received %d bytes. Raw Response: %s", bytes_read, response);
+
         // Ensure null-termination
         response[bytes_read] = '\0';
 
@@ -1121,6 +1134,247 @@ static esp_err_t sim7080g_uart_init(const sim7080g_uart_config_t sim7080g_uart_c
     return ESP_OK;
 }
 
+/**
+ * @brief Check if current device MQTT parameters match those in the handle config
+ *
+ * @param sim7080g_handle Pointer to initialized device handle
+ * @param params_match_out Pointer to store match result
+ * @return esp_err_t ESP_OK if check completed successfully
+ */
+static esp_err_t sim7080g_mqtt_check_parameters_match(const sim7080g_handle_t *sim7080g_handle,
+                                                      bool *params_match_out)
+{
+    if (!sim7080g_handle || !params_match_out)
+    {
+        ESP_LOGE(TAG, "Invalid parameters");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Initialize output
+    *params_match_out = false;
+
+    // Get current device parameters
+    mqtt_parameters_t current_params;
+    esp_err_t ret = sim7080g_mqtt_get_parameters(sim7080g_handle, &current_params);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to get current MQTT parameters");
+        return ret;
+    }
+
+    // Compare relevant parameters from handle config
+    bool match = true; // Start true, set false if any mismatch
+
+    // Check URL
+    if (strcmp(current_params.broker_url, sim7080g_handle->mqtt_config.broker_url) != 0)
+    {
+        ESP_LOGD(TAG, "URL mismatch - Current: %s, Config: %s",
+                 current_params.broker_url, sim7080g_handle->mqtt_config.broker_url);
+        match = false;
+    }
+
+    // Check port
+    if (current_params.port != sim7080g_handle->mqtt_config.port)
+    {
+        ESP_LOGD(TAG, "Port mismatch - Current: %d, Config: %d",
+                 current_params.port, sim7080g_handle->mqtt_config.port);
+        match = false;
+    }
+
+    // Check client ID
+    if (strcmp(current_params.client_id, sim7080g_handle->mqtt_config.client_id) != 0)
+    {
+        ESP_LOGD(TAG, "Client ID mismatch - Current: %s, Config: %s",
+                 current_params.client_id, sim7080g_handle->mqtt_config.client_id);
+        match = false;
+    }
+
+    // Check username
+    if (strcmp(current_params.username, sim7080g_handle->mqtt_config.username) != 0)
+    {
+        ESP_LOGD(TAG, "Username mismatch - Current: %s, Config: %s",
+                 current_params.username, sim7080g_handle->mqtt_config.username);
+        match = false;
+    }
+
+    // Check password
+    if (strcmp(current_params.client_password, sim7080g_handle->mqtt_config.client_password) != 0)
+    {
+        ESP_LOGD(TAG, "Password mismatch - Current: %s, Config: %s",
+                 current_params.client_password, sim7080g_handle->mqtt_config.client_password);
+        match = false;
+    }
+
+    *params_match_out = match;
+
+    if (match)
+    {
+        ESP_LOGI(TAG, "MQTT parameters match current config");
+    }
+    else
+    {
+        ESP_LOGI(TAG, "MQTT parameters differ from current config");
+    }
+
+    return ESP_OK;
+}
+
+/**
+ * @brief Parse MQTT parameters from bulk response
+ */
+esp_err_t sim7080g_mqtt_get_parameters(const sim7080g_handle_t *sim7080g_handle,
+                                       mqtt_parameters_t *params_out)
+{
+    if (!sim7080g_handle || !params_out)
+    {
+        ESP_LOGE(TAG, "Invalid parameters");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Initialize output structure
+    memset(params_out, 0, sizeof(mqtt_parameters_t));
+
+    char response[512] = {0};
+    esp_err_t ret = send_at_cmd(sim7080g_handle,
+                                &AT_SMCONF,
+                                AT_CMD_TYPE_READ,
+                                NULL,
+                                response,
+                                sizeof(response),
+                                5000);
+
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to read MQTT parameters");
+        return ret;
+    }
+
+    // Parse each line of the response
+    char *line = strtok(response, "\r\n");
+    bool found_any = false;
+
+    while (line != NULL)
+    {
+        // Skip the initial +SMCONF: line
+        if (strncmp(line, "CLIENTID:", 9) == 0)
+        {
+            // Parse string parameter format: 'CLIENTID: "value"'
+            char value[256];
+            if (sscanf(line + 9, " \"%[^\"]\"", value) == 1)
+            {
+                strncpy(params_out->client_id, value, sizeof(params_out->client_id) - 1);
+                found_any = true;
+            }
+        }
+        else if (strncmp(line, "URL:", 4) == 0)
+        {
+            // Parse URL and port format: 'URL: "url",port'
+            char url[256];
+            int port;
+            if (sscanf(line + 4, " \"%[^\"]\"%*[,]%d", url, &port) == 2)
+            {
+                strncpy(params_out->broker_url, url, sizeof(params_out->broker_url) - 1);
+                params_out->port = (uint16_t)port;
+                found_any = true;
+            }
+        }
+        else if (strncmp(line, "USERNAME:", 9) == 0)
+        {
+            char value[256];
+            if (sscanf(line + 9, " \"%[^\"]\"", value) == 1)
+            {
+                strncpy(params_out->username, value, sizeof(params_out->username) - 1);
+                found_any = true;
+            }
+        }
+        else if (strncmp(line, "PASSWORD:", 9) == 0)
+        {
+            char value[256];
+            if (sscanf(line + 9, " \"%[^\"]\"", value) == 1)
+            {
+                strncpy(params_out->client_password, value, sizeof(params_out->client_password) - 1);
+                found_any = true;
+            }
+        }
+        else if (strncmp(line, "KEEPTIME:", 9) == 0)
+        {
+            int value;
+            if (sscanf(line + 9, " %d", &value) == 1)
+            {
+                params_out->keepalive = (uint16_t)value;
+                found_any = true;
+            }
+        }
+        else if (strncmp(line, "CLEANSS:", 8) == 0)
+        {
+            int value;
+            if (sscanf(line + 8, " %d", &value) == 1)
+            {
+                params_out->clean_session = (value == 1);
+                found_any = true;
+            }
+        }
+        else if (strncmp(line, "QOS:", 4) == 0)
+        {
+            int value;
+            if (sscanf(line + 4, " %d", &value) == 1)
+            {
+                params_out->qos = (uint8_t)value;
+                found_any = true;
+            }
+        }
+        else if (strncmp(line, "RETAIN:", 7) == 0)
+        {
+            int value;
+            if (sscanf(line + 7, " %d", &value) == 1)
+            {
+                params_out->retain = (value == 1);
+                found_any = true;
+            }
+        }
+        else if (strncmp(line, "SUBHEX:", 7) == 0)
+        {
+            int value;
+            if (sscanf(line + 7, " %d", &value) == 1)
+            {
+                params_out->sub_hex = (value == 1);
+                found_any = true;
+            }
+        }
+        else if (strncmp(line, "ASYNCMODE:", 10) == 0)
+        {
+            int value;
+            if (sscanf(line + 10, " %d", &value) == 1)
+            {
+                params_out->async_mode = (value == 1);
+                found_any = true;
+            }
+        }
+
+        line = strtok(NULL, "\r\n");
+    }
+
+    if (!found_any)
+    {
+        ESP_LOGW(TAG, "No MQTT parameters found in response");
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    // Log all retrieved parameters
+    ESP_LOGI(TAG, "Current MQTT Parameters:");
+    ESP_LOGI(TAG, "  URL: %s", params_out->broker_url);
+    ESP_LOGI(TAG, "  Port: %d", params_out->port);
+    ESP_LOGI(TAG, "  Client ID: %s", params_out->client_id);
+    ESP_LOGI(TAG, "  Username: %s", params_out->username);
+    ESP_LOGI(TAG, "  Keepalive: %d", params_out->keepalive);
+    ESP_LOGI(TAG, "  Clean Session: %d", params_out->clean_session);
+    ESP_LOGI(TAG, "  QoS: %d", params_out->qos);
+    ESP_LOGI(TAG, "  Retain: %d", params_out->retain);
+    ESP_LOGI(TAG, "  SubHex: %d", params_out->sub_hex);
+    ESP_LOGI(TAG, "  AsyncMode: %d", params_out->async_mode);
+
+    return ESP_OK;
+}
 // ---------------------  TESTING FXNs  ---------------------//
 
 bool sim7080g_test_uart_loopback(sim7080g_handle_t *sim7080g_handle)
