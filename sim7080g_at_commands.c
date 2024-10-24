@@ -104,6 +104,12 @@ const at_cmd_t AT_SMSTATE = {
     .name = "AT+SMSTATE",
     .test = {TEST_CMD("AT+SMSTATE"), "+SMSTATE: (0-2)"},
     .read = {READ_CMD("AT+SMSTATE"), "+SMSTATE: %d"},
-    .write = {0},  
-    .execute = {0} 
-};
+    .write = {0},
+    .execute = {0}};
+
+const at_cmd_t AT_CMEE = {
+    .name = "AT+CMEE",
+    .test = {TEST_CMD("AT+CMEE"), "OK"},
+    .read = {READ_CMD("AT+CMEE"), "+CMEE: %d"},
+    .write = {WRITE_CMD("AT+CMEE"), "OK"},
+    .execute = {0}};

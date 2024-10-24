@@ -81,6 +81,8 @@ esp_err_t sim7080g_check_sim_status(const sim7080g_handle_t *sim7080g_handle)
         return ESP_ERR_INVALID_ARG;
     }
 
+    ESP_LOGI(TAG, "Sending check SIM status cmd");
+
     char response[AT_RESPONSE_MAX_LEN] = {0};
     esp_err_t ret = send_at_cmd(sim7080g_handle, &AT_CPIN, AT_CMD_TYPE_READ, NULL, response, sizeof(response), 5000);
     if (ret == ESP_OK)
@@ -108,6 +110,8 @@ esp_err_t sim7080g_check_signal_quality(const sim7080g_handle_t *sim7080g_handle
         ESP_LOGE(TAG, "Invalid parameters");
         return ESP_ERR_INVALID_ARG;
     }
+
+    ESP_LOGI(TAG, "Sending check signal quality cmd");
 
     char response[256] = {0};
     esp_err_t ret = send_at_cmd(sim7080g_handle,
@@ -191,6 +195,8 @@ esp_err_t sim7080g_get_gprs_attach_status(const sim7080g_handle_t *sim7080g_hand
         return ESP_ERR_INVALID_ARG;
     }
 
+    ESP_LOGI(TAG, "Sending get operator info cmd");
+
     char response[AT_RESPONSE_MAX_LEN] = {0};
 
     esp_err_t ret = send_at_cmd(sim7080g_handle,
@@ -258,6 +264,8 @@ esp_err_t sim7080g_get_operator_info(const sim7080g_handle_t *sim7080g_handle,
         ESP_LOGE(TAG, "Invalid parameters");
         return ESP_ERR_INVALID_ARG;
     }
+
+    ESP_LOGI(TAG, "Sending get operator info cmd");
 
     // Initialize output buffer
     memset(operator_name, 0, operator_name_len);
@@ -357,6 +365,8 @@ esp_err_t sim7080g_get_apn(const sim7080g_handle_t *sim7080g_handle, char *apn, 
         return ESP_ERR_INVALID_ARG;
     }
 
+    ESP_LOGI(TAG, "Sending get APN cmd");
+
     char response[AT_RESPONSE_MAX_LEN] = {0};
     esp_err_t err = send_at_cmd(sim7080g_handle, &AT_CGNAPN, AT_CMD_TYPE_EXECUTE, NULL, response, sizeof(response), 8000);
     if (err != ESP_OK)
@@ -383,7 +393,7 @@ esp_err_t sim7080g_get_apn(const sim7080g_handle_t *sim7080g_handle, char *apn, 
 
     int valid;
     char apn_str[64] = {0};
-    
+
     // Try different parsing approaches
     if (sscanf(line, "+CGNAPN: %d,\"%63[^\"]\"", &valid, apn_str) == 2)
     {
@@ -426,6 +436,8 @@ esp_err_t sim7080g_set_apn(const sim7080g_handle_t *sim7080g_handle, const char 
         return ESP_ERR_INVALID_ARG;
     }
 
+    ESP_LOGI(TAG, "Sending Set APN cmd to set APN to %s", apn);
+
     char cmd[AT_CMD_MAX_LEN];
     snprintf(cmd, sizeof(cmd), "0,1,\"%s\"", apn);
     char response[AT_RESPONSE_MAX_LEN] = {0};
@@ -445,6 +457,8 @@ esp_err_t sim7080g_app_network_activate(const sim7080g_handle_t *sim7080g_handle
         ESP_LOGE(TAG, "Invalid parameters");
         return ESP_ERR_INVALID_ARG;
     }
+
+    ESP_LOGI(TAG, "Sending Activating network APP network PDP context cmd");
 
     char response[AT_RESPONSE_MAX_LEN] = {0};
     esp_err_t ret = send_at_cmd(sim7080g_handle, &AT_CNACT, AT_CMD_TYPE_WRITE, "0,1", response, sizeof(response), 15000);
@@ -481,6 +495,8 @@ esp_err_t sim7080g_get_app_network_active(const sim7080g_handle_t *sim7080g_hand
         ESP_LOGE(TAG, "Invalid PDP context index: %d", pdpidx);
         return ESP_ERR_INVALID_ARG;
     }
+
+    ESP_LOGI(TAG, "Reading network status for PDP context %d", pdpidx);
 
     // Initialize output parameters
     *status = 0;
@@ -627,7 +643,7 @@ esp_err_t sim7080g_connect_to_network_bearer(const sim7080g_handle_t *sim7080g_h
     char current_apn[32];
     int apn_len = sizeof(current_apn);
     err = sim7080g_get_apn(sim7080g_handle, current_apn, apn_len);
-    if(err != ESP_OK)
+    if (err != ESP_OK)
     {
         ESP_LOGE(TAG, "Error getting APN: %s", esp_err_to_name(err));
         return err;
@@ -660,7 +676,7 @@ esp_err_t sim7080g_connect_to_network_bearer(const sim7080g_handle_t *sim7080g_h
 
     // TODO DEBUG THIS - Somehow this can be reached when the network is not actually connected
     ESP_LOGI(TAG, "Network bearer connected successfully");
-    return ESP_OK;
+    return err;
 }
 
 esp_err_t sim7080g_mqtt_set_parameters(const sim7080g_handle_t *sim7080g_handle)
@@ -682,8 +698,8 @@ esp_err_t sim7080g_mqtt_set_parameters(const sim7080g_handle_t *sim7080g_handle)
     ESP_LOGI(TAG, "  Client ID: %s", sim7080g_handle->mqtt_config.client_id);
     ESP_LOGI(TAG, "  Username: %s", sim7080g_handle->mqtt_config.username);
 
-    char cmd[256] = {0};
-    char response[256] = {0};
+    char cmd[AT_CMD_MAX_LEN] = {0};
+    char response[AT_RESPONSE_MAX_LEN] = {0};
 
     // Configure URL and port
     if (snprintf(cmd, sizeof(cmd), "\"URL\",\"%s\",%d",
@@ -930,6 +946,7 @@ esp_err_t sim7080g_mqtt_get_broker_connection_status(
         ESP_LOGE(TAG, "Invalid parameters");
         return ESP_ERR_INVALID_ARG;
     }
+    ESP_LOGI(TAG, "Checking MQTT broker connection status");
 
     *status_out = MQTT_STATUS_DISCONNECTED;
 
@@ -1111,6 +1128,34 @@ esp_err_t sim7080g_mqtt_publish(const sim7080g_handle_t *sim7080g_handle,
 
     ESP_LOGI(TAG, "Successfully published %zu bytes to topic '%s'",
              message_len, topic);
+    return ESP_OK;
+}
+
+esp_err_t sim7080g_set_verbose_error_reporting(const sim7080g_handle_t *sim7080g_handle){
+    if (!sim7080g_handle)
+    {
+        ESP_LOGE(TAG, "Invalid device handle");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_LOGI(TAG, "Setting verbose error reporting");
+
+    char response[AT_RESPONSE_MAX_LEN] = {0};
+    esp_err_t ret = send_at_cmd(sim7080g_handle,
+                                &AT_CMEE,
+                                AT_CMD_TYPE_WRITE,
+                                "2",
+                                response,
+                                sizeof(response),
+                                5000);
+
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to set verbose error reporting");
+        return ret;
+    }
+
+    ESP_LOGI(TAG, "Verbose error reporting enabled");
     return ESP_OK;
 }
 

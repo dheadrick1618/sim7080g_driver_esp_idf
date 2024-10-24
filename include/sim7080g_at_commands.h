@@ -244,6 +244,15 @@ extern const at_cmd_t AT_SMDISC;
 /// @note The test command returns the list of supported status values
 extern const at_cmd_t AT_SMSTATE;
 
+
+/// @brief Extended Error Reporting - Enable or disable extended error reporting
+/// @details This command is used to enable or disable extended error reporting.
+/// @note Status values:
+///   - 0: Disable extended error reporting - just show 'ERROR'
+///   - 1: Enable extended error reporting - show 'ERROR' followed by '+CME ERROR: <err>'
+///   - 2: Enable extended error reporting - show 'ERROR' followed by '+CMS ERROR: <err>'
+extern const at_cmd_t AT_CMEE;
+
 // TODO - AT+CGSN - request product serial number ID
 // TODO - AT+CGMI - request manf id
 // TODO - AT+CGMM - request model id

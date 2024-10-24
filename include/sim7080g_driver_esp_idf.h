@@ -168,5 +168,7 @@ esp_err_t sim7080g_mqtt_publish(const sim7080g_handle_t *sim7080g_handle,
                                 uint8_t qos,
                                 bool retain);
 
+esp_err_t sim7080g_set_verbose_error_reporting(const sim7080g_handle_t *sim7080g_handle);
+
 /// @brief Test the UART connection by sending a command and checking for a response
 bool sim7080g_test_uart_loopback(sim7080g_handle_t *sim7080g_handle);
