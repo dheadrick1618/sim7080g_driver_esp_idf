@@ -122,6 +122,10 @@ esp_err_t sim7080g_set_apn(const sim7080g_handle_t *sim7080g_handle, const char 
 
 esp_err_t sim7080g_app_network_activate(const sim7080g_handle_t *sim7080g_handle);
 
+esp_err_t sim7080g_app_network_deactivate(const sim7080g_handle_t *sim7080g_handle);
+
+esp_err_t sim7080g_cycle_cfun(const sim7080g_handle_t *sim7080g_handle);
+
 esp_err_t sim7080g_get_app_network_active(const sim7080g_handle_t *sim7080g_handle,
                                           int pdpidx,
                                           int *status,

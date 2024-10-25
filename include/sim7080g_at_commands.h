@@ -17,6 +17,7 @@ typedef struct
 typedef struct
 {
     const char *name;
+    const char *description;
     at_cmd_info_t test;
     at_cmd_info_t read;
     at_cmd_info_t write;
@@ -244,14 +245,24 @@ extern const at_cmd_t AT_SMDISC;
 /// @note The test command returns the list of supported status values
 extern const at_cmd_t AT_SMSTATE;
 
-
 /// @brief Extended Error Reporting - Enable or disable extended error reporting
 /// @details This command is used to enable or disable extended error reporting.
 /// @note Status values:
 ///   - 0: Disable extended error reporting - just show 'ERROR'
-///   - 1: Enable extended error reporting - show 'ERROR' followed by '+CME ERROR: <err>'
-///   - 2: Enable extended error reporting - show 'ERROR' followed by '+CMS ERROR: <err>'
+///   - 1: Enable extended error reporting - show 'ERROR' followed by '+CME ERROR: <error code num>'
+///   - 2: Enable extended error reporting - show 'ERROR' followed by '+CMS ERROR: <err string>'
 extern const at_cmd_t AT_CMEE;
+
+/// @brief Set Functionality - Set the functionality level of the device
+/// @note Cycling the functionality level between 0 and 1 can be used to soft reset the device (effictively clearing any past errors)
+/// @note Functionality levels:
+///   - 0: Minimum functionality (no network registration, no SMS, no call)
+///   - 1: Full functionality (network registration, SMS, call) [DEFAULT]
+///   - 4: Disable phone activity (no network registration, no SMS, no call)
+///   - 5 Factory test mode
+///   - 6 Reset device
+///   - 7 Offline mode
+extern const at_cmd_t AT_CFUN;
 
 // TODO - AT+CGSN - request product serial number ID
 // TODO - AT+CGMI - request manf id

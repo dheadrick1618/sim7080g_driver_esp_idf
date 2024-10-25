@@ -46,30 +46,39 @@ esp_err_t sim7080g_init(sim7080g_handle_t *sim7080g_handle)
     esp_err_t err = sim7080g_uart_init(sim7080g_handle->uart_config);
     if (err != ESP_OK)
     {
-        ESP_LOGE(TAG, "Error init UART: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "UART not initiailzed : %s", esp_err_to_name(err));
+        sim7080g_handle->uart_initialized = false;
         return err;
     }
-    sim7080g_handle->uart_initialized = true;
+    else
+    {
+        ESP_LOGI(TAG, "UART initialized");
+        sim7080g_handle->uart_initialized = true;
+    }
 
-    // The sim7080g can remain powered and init while the ESP32 restarts - so it may be necessary to always set the mqtt params on driver init
+    // The sim7080g can remain powered and init while the ESP32 restarts - so it may not be necessary to always set the mqtt params on driver init
     bool params_match;
     sim7080g_mqtt_check_parameters_match(sim7080g_handle, &params_match);
     if (params_match == true)
     {
-        ESP_LOGI(TAG, "Device MQTT parameters already match config params - skipping MQTT set params on init");
+        ESP_LOGI(TAG, "Device MQTT parameter check: Param values already match Config values - skipping MQTT set params on init");
     }
     else
     {
         err = sim7080g_mqtt_set_parameters(sim7080g_handle);
         if (err != ESP_OK)
         {
-            ESP_LOGE(TAG, "Error init MQTT for device (writing config params to sim7080g): %s", esp_err_to_name(err));
+            ESP_LOGE(TAG, "Device MQTT parameter set: Error init MQTT for device (writing config params to sim7080g): %s", esp_err_to_name(err));
+            sim7080g_handle->mqtt_initialized = false;
             return err;
         }
+        else
+        {
+            ESP_LOGI(TAG, "Device MQTT parameter set: Success - MQTT params set on device");
+            sim7080g_handle->mqtt_initialized = true;
+        }
     }
-
-    sim7080g_handle->mqtt_initialized = true;
-
+    ESP_LOGI(TAG, "SIM7080G Driver initialized");
     return ESP_OK;
 }
 
@@ -457,25 +466,124 @@ esp_err_t sim7080g_app_network_activate(const sim7080g_handle_t *sim7080g_handle
         ESP_LOGE(TAG, "Invalid parameters");
         return ESP_ERR_INVALID_ARG;
     }
-
-    ESP_LOGI(TAG, "Sending Activating network APP network PDP context cmd");
-
-    char response[AT_RESPONSE_MAX_LEN] = {0};
-    esp_err_t ret = send_at_cmd(sim7080g_handle, &AT_CNACT, AT_CMD_TYPE_WRITE, "0,1", response, sizeof(response), 15000);
+    // ESP_LOGI(TAG, "Sending Activating network APP network PDP context cmd");
+    // To ensure clear state - deactivate first (if currently active), then clear any pending errors
+    int pdpidx = 0;
+    int status;
+    char address[64] = {0};
+    esp_err_t ret = sim7080g_get_app_network_active(sim7080g_handle, pdpidx, &status, address, sizeof(address));
     if (ret == ESP_OK)
     {
-        if (strstr(response, "+APP PDP: 0,ACTIVE") != NULL)
-        {
-            ESP_LOGI(TAG, "Network activated successfully");
+        if (status == 2)
+        { // IF network  is  already active
+            ret = sim7080g_app_network_deactivate(sim7080g_handle);
+            if (ret != ESP_OK)
+            {
+                ESP_LOGE(TAG, "Failed to deactivate network before activating");
+                return ret;
+            }
             return ESP_OK;
         }
-        else
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Failed to get network status before activating");
+        return ret;
+    }
+
+    ret = sim7080g_cycle_cfun(sim7080g_handle);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to cycle CFUN before activating network");
+        return ret;
+    }
+
+    // Repeat this command multiple times - response needs to be validated - sometimes it can return OK and still be deactive
+    for (int i = 0; i < 3; i++)
+    {
+        char response[AT_RESPONSE_MAX_LEN] = {0};
+        ret = send_at_cmd(sim7080g_handle, &AT_CNACT, AT_CMD_TYPE_WRITE, "0,1", response, sizeof(response), 15000);
+        if (ret == ESP_OK)
         {
-            ESP_LOGE(TAG, "Failed to activate network: %s", response);
-            return ESP_FAIL;
+            if (strstr(response, "+APP PDP: 0,ACTIVE") != NULL)
+            {
+                ESP_LOGI(TAG, "Network activated successfully");
+                return ESP_OK;
+            }
         }
     }
-    return ret;
+    ESP_LOGE(TAG, "Failed to activate network");
+    return ESP_FAIL;
+}
+
+esp_err_t sim7080g_cycle_cfun(const sim7080g_handle_t *sim7080g_handle)
+{
+    if (!sim7080g_handle)
+    {
+        ESP_LOGE(TAG, "Invalid parameters");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    char response[AT_RESPONSE_MAX_LEN] = {0};
+    esp_err_t ret = send_at_cmd(sim7080g_handle, &AT_CFUN, AT_CMD_TYPE_WRITE, "0", response, sizeof(response), 10000);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to send CFUN=0 command");
+        return ret;
+    }
+
+    ESP_LOGI(TAG, "Waiting for CFUN=0 to take effect");
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
+
+    ret = send_at_cmd(sim7080g_handle, &AT_CFUN, AT_CMD_TYPE_WRITE, "1", response, sizeof(response), 10000);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to send CFUN=1 command");
+        return ret;
+    }
+
+    ESP_LOGI(TAG, "Waiting for CFUN=1 to take effect");
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
+
+    return ESP_OK;
+}
+
+// TODO -
+// esp_err_t sim7080g_get_cfun(const sim7080g_handle_t *sim7080g_handle)
+// {
+//     if (!sim7080g_handle)
+//     {
+//         ESP_LOGE(TAG, "Invalid parameters");
+//         return ESP_ERR_INVALID_ARG;
+//     }
+//     ESP_LOGI(TAG, "Sending get CFUN cmd");
+// }
+
+esp_err_t sim7080g_app_network_deactivate(const sim7080g_handle_t *sim7080g_handle)
+{
+    if (!sim7080g_handle)
+    {
+        ESP_LOGE(TAG, "Invalid parameters");
+        return ESP_ERR_INVALID_ARG;
+    }
+    ESP_LOGI(TAG, "Sending app network deactivate cmd");
+
+    for (int i = 0; i < 3; i++)
+    {
+        /// Loops becasue the send at cmd fxn might get an OK - but the device might remain active
+        char response[AT_RESPONSE_MAX_LEN] = {0};
+        esp_err_t ret = send_at_cmd(sim7080g_handle, &AT_CNACT, AT_CMD_TYPE_WRITE, "0,0", response, sizeof(response), 15000);
+        if (ret == ESP_OK)
+        {
+            if (strstr(response, "+APP PDP: 0,DEACTIVE") != NULL)
+            {
+                ESP_LOGI(TAG, "Network deactivated successfully");
+                return ESP_OK;
+            }
+        }
+    }
+    ESP_LOGE(TAG, "Failed to deactivate network");
+    return ESP_FAIL;
 }
 
 esp_err_t sim7080g_get_app_network_active(const sim7080g_handle_t *sim7080g_handle,
@@ -495,8 +603,7 @@ esp_err_t sim7080g_get_app_network_active(const sim7080g_handle_t *sim7080g_hand
         ESP_LOGE(TAG, "Invalid PDP context index: %d", pdpidx);
         return ESP_ERR_INVALID_ARG;
     }
-
-    ESP_LOGI(TAG, "Reading network status for PDP context %d", pdpidx);
+    // ESP_LOGI(TAG, "Reading network status for PDP context %d", pdpidx);
 
     // Initialize output parameters
     *status = 0;
@@ -621,6 +728,19 @@ esp_err_t sim7080g_connect_to_network_bearer(const sim7080g_handle_t *sim7080g_h
         ESP_LOGE(TAG, "Error checking signal quality: %s", esp_err_to_name(err));
         return err;
     }
+    else
+    {
+        if (rssi <= 0)
+        {
+            ESP_LOGE(TAG, "Signal quality is too low (-115dBm or less) to connect to network");
+            return ESP_FAIL;
+        }
+        if (rssi == 99)
+        {
+            ESP_LOGE(TAG, "Signal quality is unknown or not detectable");
+            return ESP_FAIL;
+        }
+    }
 
     bool attached;
     err = sim7080g_get_gprs_attach_status(sim7080g_handle, &attached);
@@ -673,10 +793,15 @@ esp_err_t sim7080g_connect_to_network_bearer(const sim7080g_handle_t *sim7080g_h
         ESP_LOGE(TAG, "Error getting network active status: %s", esp_err_to_name(err));
         return err;
     }
+    if (status <= 0) // 1 - connected, 2 - in operation
+    {
+        ESP_LOGE(TAG, "Network bearer not connected");
+        return ESP_FAIL;
+    }
 
     // TODO DEBUG THIS - Somehow this can be reached when the network is not actually connected
     ESP_LOGI(TAG, "Network bearer connected successfully");
-    return err;
+    return ESP_OK;
 }
 
 esp_err_t sim7080g_mqtt_set_parameters(const sim7080g_handle_t *sim7080g_handle)
@@ -853,6 +978,22 @@ esp_err_t sim7080g_mqtt_connect_to_broker(const sim7080g_handle_t *sim7080g_hand
     {
         ESP_LOGI(TAG, "MQTT broker already connected");
         return ESP_ERR_INVALID_STATE;
+    }
+
+    // Verify network broker connected before attempting MQTT connect
+    int pdpidx = 0;
+    int status;
+    char address[32];
+    ret = sim7080g_get_app_network_active(sim7080g_handle, pdpidx, &status, address, sizeof(address));
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to get network active status");
+        return ret;
+    }
+    if (status <= 0)
+    {
+        ESP_LOGE(TAG, "Network bearer not connected");
+        return ESP_FAIL;
     }
 
     ESP_LOGI(TAG, "Attempting to connect to MQTT broker");
@@ -1055,7 +1196,7 @@ esp_err_t sim7080g_mqtt_publish(const sim7080g_handle_t *sim7080g_handle,
     }
 
     // Wait for '>' prompt with timeout
-    char response[256] = {0};
+    char response[AT_RESPONSE_MAX_LEN] = {0};
     int bytes_read = uart_read_bytes(sim7080g_handle->uart_config.port_num,
                                      response,
                                      sizeof(response) - 1,
@@ -1131,7 +1272,8 @@ esp_err_t sim7080g_mqtt_publish(const sim7080g_handle_t *sim7080g_handle,
     return ESP_OK;
 }
 
-esp_err_t sim7080g_set_verbose_error_reporting(const sim7080g_handle_t *sim7080g_handle){
+esp_err_t sim7080g_set_verbose_error_reporting(const sim7080g_handle_t *sim7080g_handle)
+{
     if (!sim7080g_handle)
     {
         ESP_LOGE(TAG, "Invalid device handle");
@@ -1171,13 +1313,13 @@ static esp_err_t send_at_cmd(const sim7080g_handle_t *sim7080g_handle,
 {
     if (!sim7080g_handle || !sim7080g_handle->uart_initialized)
     {
-        ESP_LOGE(TAG, "SIM7080G driver not initialized");
+        ESP_LOGE(TAG, "Send AT cmd failed: SIM7080G driver not initialized");
         return ESP_ERR_INVALID_STATE;
     }
 
     if (cmd == NULL || response == NULL || response_size == 0)
     {
-        ESP_LOGE(TAG, "Invalid parameters");
+        ESP_LOGE(TAG, "Send AT cmd failed: Invalid parameters");
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -1200,13 +1342,13 @@ static esp_err_t send_at_cmd(const sim7080g_handle_t *sim7080g_handle,
         cmd_info = &cmd->execute;
         break;
     default:
-        ESP_LOGE(TAG, "Invalid command type");
+        ESP_LOGE(TAG, "Send AT cmd failed: Invalid command type");
         return ESP_ERR_INVALID_ARG;
     }
 
     if (cmd_info->cmd_string == NULL)
     {
-        ESP_LOGE(TAG, "Command string is NULL");
+        ESP_LOGE(TAG, "Send AT cmd failed: Command string is NULL");
         return ESP_ERR_INVALID_ARG;
     }
 
@@ -1215,7 +1357,7 @@ static esp_err_t send_at_cmd(const sim7080g_handle_t *sim7080g_handle,
     {
         if (snprintf(at_cmd, sizeof(at_cmd), "%s%s\r\n", cmd_info->cmd_string, args) >= sizeof(at_cmd))
         {
-            ESP_LOGE(TAG, "AT command too long");
+            ESP_LOGE(TAG, "Send AT cmd failed: AT command too long");
             return ESP_ERR_INVALID_SIZE;
         }
     }
@@ -1223,7 +1365,7 @@ static esp_err_t send_at_cmd(const sim7080g_handle_t *sim7080g_handle,
     {
         if (snprintf(at_cmd, sizeof(at_cmd), "%s\r\n", cmd_info->cmd_string) >= sizeof(at_cmd))
         {
-            ESP_LOGE(TAG, "AT command too long");
+            ESP_LOGE(TAG, "Send AT cmd failed: AT command too long");
             return ESP_ERR_INVALID_SIZE;
         }
     }
@@ -1232,6 +1374,7 @@ static esp_err_t send_at_cmd(const sim7080g_handle_t *sim7080g_handle,
     for (int retry = 0; retry < AT_CMD_MAX_RETRIES; retry++)
     {
         ESP_LOGI(TAG, "Sending AT command (attempt %d/%d): %s", retry + 1, AT_CMD_MAX_RETRIES, at_cmd);
+        ESP_LOGI(TAG, "Command description: %s", cmd->description);
 
         // Clear any pending data in UART buffers
         uart_flush(sim7080g_handle->uart_config.port_num);
@@ -1240,7 +1383,7 @@ static esp_err_t send_at_cmd(const sim7080g_handle_t *sim7080g_handle,
                                              at_cmd, strlen(at_cmd));
         if (bytes_written < 0)
         {
-            ESP_LOGE(TAG, "Failed to send AT command");
+            ESP_LOGE(TAG, "Send AT cmd failed: Failed to send AT command");
             ret = ESP_FAIL;
             continue;
         }
@@ -1251,7 +1394,7 @@ static esp_err_t send_at_cmd(const sim7080g_handle_t *sim7080g_handle,
                                          pdMS_TO_TICKS(timeout_ms));
         if (bytes_read < 0)
         {
-            ESP_LOGE(TAG, "Failed to read AT command response");
+            ESP_LOGE(TAG, "Send AT cmd failed: Failed to read AT command response");
             ret = ESP_FAIL;
             continue;
         }
@@ -1264,29 +1407,29 @@ static esp_err_t send_at_cmd(const sim7080g_handle_t *sim7080g_handle,
         // Check for expected response or error
         if (strstr(response, "OK") != NULL)
         {
-            ESP_LOGI(TAG, "AT command successful");
+            ESP_LOGI(TAG, "Send AT cmd SUCCESS: AT command send returned OK");
             return ESP_OK;
         }
         else if (strstr(response, "ERROR") != NULL)
         {
-            ESP_LOGE(TAG, "AT command error");
+            ESP_LOGE(TAG, "Send AT cmd failed: AT command send returned ERROR");
             ret = ESP_FAIL;
             continue;
         }
         else if (bytes_read == 0)
         {
-            ESP_LOGW(TAG, "AT command timeout");
+            ESP_LOGW(TAG, "Send AT cmd failed: AT command timeout");
             ret = ESP_ERR_TIMEOUT;
             continue;
         }
         else
         {
-            ESP_LOGW(TAG, "Unexpected AT command response");
+            ESP_LOGW(TAG, "Send AT cmd failed: Unexpected AT command response");
             ret = ESP_FAIL;
         }
     }
 
-    ESP_LOGE(TAG, "AT command failed after %d attempts", AT_CMD_MAX_RETRIES);
+    ESP_LOGE(TAG, "Send AT cmd failed after %d attempts", AT_CMD_MAX_RETRIES);
     return ret;
 }
 
@@ -1583,7 +1726,7 @@ esp_err_t sim7080g_mqtt_get_parameters(const sim7080g_handle_t *sim7080g_handle,
 
     return ESP_OK;
 }
-// ---------------------  TESTING FXNs  ---------------------//
+// ---------------------  INTERNAL TESTING FXNs  ---------------------//
 
 bool sim7080g_test_uart_loopback(sim7080g_handle_t *sim7080g_handle)
 {
