@@ -107,6 +107,123 @@ void app_main(void)
 
 ## How it works
 
+### Mapping AT commands for the SIM7080g with OSI model layers
+
+#### Layer 1 - Physical Layer
+
+Physical connection, radio signals, bit transmission
+AT+CSQ                    # Check signal strength
+AT+STXPOWER=31,2         # Configure TX power settings
+AT+ANTENALLCFG           # Configure antenna settings
+AT+CBAND                 # Set mobile operation bands
+Primary concerns:
+
+Signal strength
+Radio frequency configuration
+Physical transmission power
+Antenna configuration
+
+#### Layer 2 - Data Link Layer
+
+Radio access technology, cellular protocols
+AT+CNMP=38              # Set to LTE only mode
+AT+CMNB=2              # Select NB-IoT mode
+AT+CRATPRI="130312"    # Set RAT search priority
+AT+CRRCSTATE?          # Query RRC (Radio Resource Control) state
+Primary concerns:
+
+Cell selection/reselection
+Radio resource management
+Link establishment with cell tower
+Frame transmission control
+
+#### Layer 3 - Network Layer
+
+IP addressing, routing, packet delivery
+PDP Context (Packet Data Protocol) - Similar to IP configuration
+AT+CGDCONT=1,"IP","[apn]"    # Configure PDP context with IP
+AT+CNACT=1,1                 # Activate PDP context
+AT+CGPADDR                   # Show PDP address (IP address)
+
+##### DNS Configuration
+
+AT+CDNSCFG="8.8.8.8","8.8.4.4"  # Configure DNS servers
+AT+CDNSGIP="broker.example.com"  # Resolve domain name
+Primary concerns:
+
+IP address assignment
+Packet routing
+Domain name resolution
+Network registration
+
+#### Layer 4 - Transport Layer
+
+End-to-end connections, reliability
+TCP Configuration for MQTT
+AT+CACID=0                     # Set TCP/UDP identifier
+AT+CAOPEN=0,0,"TCP","server.com",1883  # Open TCP connection
+AT+CASSLCFG                    # Configure SSL/TLS if used
+
+##### Connection Parameters
+
+AT+SMCONF="KEEPTIME",60       # MQTT keepalive timing
+Primary concerns:
+
+TCP connection establishment
+Connection reliability
+Flow control
+Port management
+
+#### Layer 5 - Session Layer
+
+Session establishment, maintenance
+AT+SMCONF="CLEANSS",1         # Session clean setting
+AT+SMCONN                     # Establish MQTT session
+AT+SMSTATE?                   # Check connection state
+Primary concerns:
+
+MQTT session management
+Connection state tracking
+Session cleanup
+Dialog control
+
+#### Layer 6 - Presentation Layer
+
+Data formatting, encryption
+SSL/TLS Configuration
+AT+CSSLCFG="SSLVERSION",0,3   # Set SSL version
+AT+SMSSL=0,"ca.crt","client.crt"  # Configure certificates
+
+##### Message Format
+
+AT+SMPUBHEX=1                 # Set hex format for messages
+Primary concerns:
+
+Data encryption (SSL/TLS)
+Certificate management
+Message format conversion
+Character encoding
+
+#### Layer 7 - Application Layer
+
+MQTT protocol, application data
+MQTT Application Configuration
+AT+SMCONF="CLIENTID","device1"
+AT+SMCONF="USERNAME","user"
+AT+SMCONF="PASSWORD","pass"
+AT+SMCONF="QOS",1
+
+##### MQTT Operations
+
+AT+SMSUB="topic/test",1       # Subscribe to topic
+AT+SMPUB="topic/test",6,1,0   # Publish message
+Primary concerns:
+
+MQTT protocol operations
+Message publishing/subscribing
+Application-level QoS
+User authentication
+
 ### Internal steps for connecting to the device to an MQTT broker
 
 1. (AT+CPIN) Check SIM card status - must return 'READY' otherwise there is an issue with the SIM card.
