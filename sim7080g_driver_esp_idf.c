@@ -977,7 +977,7 @@ esp_err_t sim7080g_mqtt_connect_to_broker(const sim7080g_handle_t *sim7080g_hand
     if (curr_status != MQTT_STATUS_DISCONNECTED)
     {
         ESP_LOGI(TAG, "MQTT broker already connected");
-        return ESP_ERR_INVALID_STATE;
+        return ESP_OK;
     }
 
     // Verify network broker connected before attempting MQTT connect
