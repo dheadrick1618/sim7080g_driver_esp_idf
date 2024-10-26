@@ -105,7 +105,48 @@ void app_main(void)
 }
 ```
 
-## How it works
+## Tech stack overview
+
+Here is a traditional computer internet network stack compared with the SIM7080G cellular modem stack:
+
+Traditional stack:
+
+```text
+Application Layer (Layer 7)
+- HTTP, MQTT, FTP, etc.
+↓
+Transport Layer (Layer 4)
+- TCP/UDP connections
+↓
+Network Layer (Layer 3)
+- IP routing, addressing
+↓
+Data Link Layer (Layer 2)
+- Ethernet frames
+↓
+Physical Layer (Layer 1)
+- Ethernet cable, WiFi radio
+```
+
+SIM7080G Cellular stack:
+
+```text
+Application Layer (Layer 7)
+- MQTT, HTTP, FTP, etc.
+↓
+Transport Layer (Layer 4)
+- TCP/UDP connections
+↓
+Network Layer (Layer 3)
+- IP over PDP Context
+↓
+Cellular Protocol Layers:
+- Packet Switched (PS) Domain
+- LTE Radio Protocols
+↓
+Physical Layer
+- Cellular Radio (RF)
+```
 
 ### Mapping AT commands for the SIM7080g with OSI model layers
 
@@ -224,6 +265,8 @@ Message publishing/subscribing
 Application-level QoS
 User authentication
 
+## How it works
+
 ### Internal steps for connecting to the device to an MQTT broker
 
 1. (AT+CPIN) Check SIM card status - must return 'READY' otherwise there is an issue with the SIM card.
@@ -246,11 +289,3 @@ User authentication
 7. Driver is ready to be used for publishing / subscribing data with an MQTT broker.
 
 ## Notes
-
-### Protocol / Tech stack
-
-- Physical layer : LTE Cat-M cellular OR NB-IoT cellular
-- Data Link Layer: LTE protocols
-- Network Layer  : IP
-- Transport Layer: TCP
-- App Layer      : MQTT
