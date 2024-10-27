@@ -137,7 +137,25 @@ const at_cmd_t AT_CFUN = {
     .write = {WRITE_CMD("AT+CFUN"), "OK"},
     .execute = {0}};
 
-// TODO - Implement and use these commands 
+const at_cmd_t AT_CEREG = {
+    .name = "AT+CEREG",
+    .description = "EPS Network Registration Status - Controls and reports network registration and location information",
+    .test = {TEST_CMD("AT+CEREG"), "+CEREG: (0-2,4)"},
+    .read = {READ_CMD("AT+CEREG"), "+CEREG: %d,%d"}, // Basic format: mode,status
+    .write = {WRITE_CMD("AT+CEREG"), "OK"},
+    .execute = {0}};
+
+// TODO - Implement this if its found relevant later to check  transport layer connection
+//  const at_cmd_t AT_CASTATE = {
+//      .name = "AT+CASTATE",
+//      .description = "Query TCP/UDP Connection Status - Check current connection status",
+//      .test = {0},
+//      .read = {READ_CMD("AT+CASTATE"), "+CASTATE: %d,%d"},
+//      .write = {0},
+//      .execute = {0}};
+
+// ------------------------- THESE COMMANDS MAY BE USEFUL LATER -------------------------//
+// --------------------------------------------------------------------------------------//
 // const at_cmd_t AT_CNMP = {
 //     .name = "AT+CNMP",
 //     .description = "Preferred Mode Selection - Select network mode (GSM/LTE)",
@@ -152,14 +170,6 @@ const at_cmd_t AT_CFUN = {
 //     .test = {TEST_CMD("AT+CMNB"), "+CMNB: (1-3)"},
 //     .read = {READ_CMD("AT+CMNB"), "+CMNB: %d"},
 //     .write = {WRITE_CMD("AT+CMNB"), "OK"},
-//     .execute = {0}};
-
-// const at_cmd_t AT_CEREG = {
-//     .name = "AT+CEREG",
-//     .description = "EPS Network Registration Status",
-//     .test = {TEST_CMD("AT+CEREG"), "+CEREG: (0-2,4)"},
-//     .read = {READ_CMD("AT+CEREG"), "+CEREG: %d,%d"},
-//     .write = {WRITE_CMD("AT+CEREG"), "OK"},
 //     .execute = {0}};
 
 // const at_cmd_t AT_CPSI = {

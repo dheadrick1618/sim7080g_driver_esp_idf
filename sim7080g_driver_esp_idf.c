@@ -366,6 +366,7 @@ esp_err_t sim7080g_get_operator_info(const sim7080g_handle_t *sim7080g_handle,
 
     return ret;
 }
+
 esp_err_t sim7080g_get_apn(const sim7080g_handle_t *sim7080g_handle, char *apn, int apn_len)
 {
     if (!sim7080g_handle || !apn || apn_len <= 0)
@@ -1726,6 +1727,364 @@ esp_err_t sim7080g_mqtt_get_parameters(const sim7080g_handle_t *sim7080g_handle,
 
     return ESP_OK;
 }
+
+// ----------------------------------------------------- NEW API FXNS ----------------------------------------------------- //
+// -----------------------------------------------------              ----------------------------------------------------- //
+
+// Check:
+// - AT+CPIN? (SIM status)
+// - AT+CSQ (Signal quality)
+// - AT+CPSI? (System mode)
+esp_err_t sim7080g_is_physical_layer_connected(const sim7080g_handle_t *handle, bool *connected)
+{
+    if (!handle || !connected)
+    {
+        ESP_LOGE(TAG, "Is physical layer connected fail: Invalid parameters");
+        return ESP_ERR_INVALID_ARG;
+    }
+    *connected = false;
+    esp_err_t err;
+    char response[AT_RESPONSE_MAX_LEN] = {0};
+
+    // Check SIM card status with AT+CPIN?
+    err = send_at_cmd(handle, &AT_CPIN, AT_CMD_TYPE_READ, NULL, response, sizeof(response), 5000);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "SIM card status check failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    if (strstr(response, "READY") == NULL)
+    {
+        ESP_LOGE(TAG, "SIM card not ready: %s", response);
+        return ESP_FAIL;
+    }
+
+    // Check signal quality with AT+CSQ
+    memset(response, 0, sizeof(response));
+    err = send_at_cmd(handle, &AT_CSQ, AT_CMD_TYPE_EXECUTE, NULL, response, sizeof(response), 5000);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Signal quality check failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    int rssi, ber;
+    char *csq_response = strstr(response, "+CSQ:");
+    if (!csq_response || sscanf(csq_response, "+CSQ: %d,%d", &rssi, &ber) != 2)
+    {
+        ESP_LOGE(TAG, "Failed to parse signal quality response: %s", response);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // Check if signal strength is acceptable (RSSI >= -105 dBm, corresponds to CSQ >= 5)
+    // and not unknown (99)
+    if (rssi >= 1 && rssi != 99)
+    {
+        *connected = true;
+        ESP_LOGI(TAG, "Physical layer connected (RSSI: %d, BER: %d)", rssi, ber);
+    }
+    else
+    {
+        ESP_LOGW(TAG, "Physical layer not connected (RSSI: %d, BER: %d)", rssi, ber);
+    }
+
+    // TODO - CPSI Command check
+
+    return ESP_OK;
+}
+
+// Check:
+// - AT+CEREG? (Network registration)
+// - AT+CGATT? (GPRS attach status)
+// - AT+CGDCONT? (PDP context)
+esp_err_t sim7080g_is_data_link_layer_connected(const sim7080g_handle_t *handle, bool *connected)
+{
+    if (!handle || !connected)
+    {
+        ESP_LOGE(TAG, "Is data link layer connected fail: Invalid parameters");
+        return ESP_ERR_INVALID_ARG;
+    }
+    *connected = false;
+    esp_err_t err;
+    char response[AT_RESPONSE_MAX_LEN] = {0};
+
+    // TODO - this
+    // Check network registration status with AT+CEREG?
+    err = send_at_cmd(handle, &AT_CEREG, AT_CMD_TYPE_READ, NULL, response, sizeof(response), 5000);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Network registration status check failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    // Parse just the mode and status
+    int n, stat;
+    char *cereg_response = strstr(response, "+CEREG:");
+    if (!cereg_response || sscanf(cereg_response, "+CEREG: %d,%d", &n, &stat) != 2)
+    {
+        ESP_LOGE(TAG, "Failed to parse network registration status: %s", response);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // Check registration status (1 = home network, 5 = roaming)
+    if (stat == 1 || stat == 5)
+    {
+        ESP_LOGI(TAG, "Network registration ok (status: %s)",
+                 stat == 1 ? "home network" : "roaming");
+    }
+    else
+    {
+        const char *status_str;
+        switch (stat)
+        {
+        case 0:
+            status_str = "not registered, not searching";
+            break;
+        case 2:
+            status_str = "searching";
+            break;
+        case 3:
+            status_str = "registration denied";
+            break;
+        case 4:
+            status_str = "unknown";
+            break;
+        default:
+            status_str = "invalid status";
+            break;
+        }
+        ESP_LOGE(TAG, "Network not registered: %s", status_str);
+        return ESP_OK; // Not an error, just not registered
+    }
+
+    // Check GPRS attachment status with AT+CGATT?
+    err = send_at_cmd(handle, &AT_CGATT, AT_CMD_TYPE_READ, NULL, response, sizeof(response), 15000);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "GPRS attach status check failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    int attach_status;
+    char *cgatt_response = strstr(response, "+CGATT:");
+    if (!cgatt_response || sscanf(cgatt_response, "+CGATT: %d", &attach_status) != 1)
+    {
+        ESP_LOGE(TAG, "Failed to parse GPRS attach status: %s", response);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    if (!attach_status)
+    {
+        ESP_LOGE(TAG, "Data link layer not connected: Not attached to GPRS");
+        return ESP_OK;
+    }
+
+    // Check operator info with AT+COPS?
+    memset(response, 0, sizeof(response));
+    err = send_at_cmd(handle, &AT_COPS, AT_CMD_TYPE_READ, NULL, response, sizeof(response), 5000);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Operator info check failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    int mode, format, act_c;
+    char operator_str[64] = {0};
+    char *cops_response = strstr(response, "+COPS:");
+
+    if (cops_response &&
+        sscanf(cops_response, "+COPS: %d,%d,\"%63[^\"]\",%d", &mode, &format, operator_str, &act_c) >= 3)
+    {
+        if (mode != 2)
+        { // 2 = deregistered
+            *connected = true;
+            ESP_LOGI(TAG, "Data link layer connected (Operator: %s)", operator_str);
+        }
+        else
+        {
+            ESP_LOGE(TAG, "Data link layer not connected (Operator mode: %d)", mode);
+        }
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Failed to parse operator info: %s", response);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    return ESP_OK;
+}
+
+// Check:
+// AT+CNACT? (PDP context)
+// AT+CGPADDR (IP address)
+esp_err_t sim7080g_is_network_layer_connected(const sim7080g_handle_t *handle, bool *connected)
+{
+    if (!handle || !connected)
+    {
+        ESP_LOGE(TAG, "Is network layer connected fail: Invalid parameters");
+        return ESP_ERR_INVALID_ARG;
+    }
+    *connected = false;
+    esp_err_t err;
+    char response[AT_RESPONSE_MAX_LEN] = {0};
+
+    // Check PDP context status with AT+CNACT?
+    err = send_at_cmd(handle, &AT_CNACT, AT_CMD_TYPE_READ, NULL, response, sizeof(response), 20000);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "PDP context status check failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    // Parse response for the first PDP context (index 0)
+    char *cnact_response = strstr(response, "+CNACT:");
+    if (cnact_response)
+    {
+        int pdp_idx, status;
+        char ip_addr[64] = {0};
+
+        if (sscanf(cnact_response, "+CNACT: %d,%d,\"%63[^\"]\"",
+                   &pdp_idx, &status, ip_addr) >= 2)
+        {
+            if (pdp_idx == 0 && status > 0 && strlen(ip_addr) > 0)
+            {
+                *connected = true;
+                ESP_LOGI(TAG, "Network layer connected (IP: %s)", ip_addr);
+            }
+            else
+            {
+                ESP_LOGE(TAG, "Network layer not connected (PDP status: %d)", status);
+            }
+        }
+        else
+        {
+            ESP_LOGE(TAG, "Failed to parse PDP context status: %s", response);
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+    }
+    else
+    {
+        ESP_LOGE(TAG, "No CNACT response found");
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // TODO - this
+    //  Check IP address with AT+CGPADDR
+
+    return ESP_OK;
+}
+
+// Check:
+// AT+CASTATE (TCP/UDP connection status)
+// TODO - FIX THIS (if its even needed?)
+// esp_err_t sim7080g_is_transport_layer_connected(const sim7080g_handle_t *handle, bool *connected)
+// {
+//     if (!handle || !connected)
+//     {
+//         ESP_LOGE(TAG, "Is transport layer connected fail: Invalid parameters");
+//         return ESP_ERR_INVALID_ARG;
+//     }
+
+//     // TODO - this
+//     // Check TCP/UDP connection status with AT+CASTATE
+
+//     *connected = false;
+//     char response[AT_RESPONSE_MAX_LEN] = {0};
+//     esp_err_t err;
+
+//     err = send_at_cmd(handle, &AT_CASTATE, AT_CMD_TYPE_READ, NULL, response, sizeof(response), 5000);
+//     if (err != ESP_OK)
+//     {
+//         ESP_LOGE(TAG, "Transport layer status check failed: %s", esp_err_to_name(err));
+//         return err;
+//     }
+
+//     char *castate_response = strstr(response, "+CASTATE:");
+//     if (castate_response)
+//     {
+//         int status;
+//         if (sscanf(castate_response, "+CASTATE: %d", &status) == 1)
+//         {
+//             // Status values: 0=disconnected, 1=connected
+//             if (status > 0)
+//             {
+//                 *connected = true;
+//                 ESP_LOGI(TAG, "Transport layer connected (CASTATE: %d)", status);
+//             }
+//             else
+//             {
+//                 ESP_LOGE(TAG, "Transport layer not connected (CASTATE: %d)", status);
+//             }
+//         }
+//         else
+//         {
+//             ESP_LOGE(TAG, "Failed to parse transport layer status: %s", response);
+//             return ESP_ERR_INVALID_RESPONSE;
+//         }
+//     }
+//     else
+//     {
+//         ESP_LOGE(TAG, "No CASTATE response found");
+//         return ESP_ERR_INVALID_RESPONSE;
+//     }
+
+//     return ESP_OK;
+// }
+
+// Check:
+// AT+SMSTATE (MQTT connection status)
+esp_err_t sim7080g_is_application_layer_connected(const sim7080g_handle_t *handle, bool *connected)
+{
+    if (!handle || !connected)
+    {
+        ESP_LOGE(TAG, "Is application layer connected fail: Invalid parameters");
+        return ESP_ERR_INVALID_ARG;
+    }
+    *connected = false;
+    esp_err_t err;
+    char response[AT_RESPONSE_MAX_LEN] = {0};
+
+    // Check MQTT connection status with AT+SMSTATE?
+    err = send_at_cmd(handle, &AT_SMSTATE, AT_CMD_TYPE_READ, NULL, response, sizeof(response), 5000);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "MQTT status check failed: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    char *smstate_response = strstr(response, "+SMSTATE:");
+    if (smstate_response)
+    {
+        int status;
+        if (sscanf(smstate_response, "+SMSTATE: %d", &status) == 1)
+        {
+            // Status values: 0=disconnected, 1=connected, 2=connected with session
+            if (status > 0)
+            {
+                *connected = true;
+                ESP_LOGI(TAG, "Application layer connected (MQTT Status: %d)", status);
+            }
+            else
+            {
+                ESP_LOGE(TAG, "Application layer not connected (MQTT Status: %d)", status);
+            }
+        }
+        else
+        {
+            ESP_LOGE(TAG, "Failed to parse MQTT status: %s", response);
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+    }
+    else
+    {
+        ESP_LOGE(TAG, "No SMSTATE response found");
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    return ESP_OK;
+}
+
 // ---------------------  INTERNAL TESTING FXNs  ---------------------//
 
 bool sim7080g_test_uart_loopback(sim7080g_handle_t *sim7080g_handle)

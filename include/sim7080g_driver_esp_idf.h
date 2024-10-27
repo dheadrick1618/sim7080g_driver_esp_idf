@@ -174,5 +174,14 @@ esp_err_t sim7080g_mqtt_publish(const sim7080g_handle_t *sim7080g_handle,
 
 esp_err_t sim7080g_set_verbose_error_reporting(const sim7080g_handle_t *sim7080g_handle);
 
+esp_err_t sim7080g_is_physical_layer_connected(const sim7080g_handle_t *sim7080g_handle, bool *connected);
+esp_err_t sim7080g_is_data_link_layer_connected(const sim7080g_handle_t *sim7080g_handle, bool *connected);
+esp_err_t sim7080g_is_network_layer_connected(const sim7080g_handle_t *sim7080g_handle, bool *connected);
+// esp_err_t sim7080g_is_transport_layer_connected(const sim7080g_handle_t *sim7080g_handle, bool *connected);
+
+// TODO - Implement session layer check once SSL is implemented
+
+esp_err_t sim7080g_is_application_layer_connected(const sim7080g_handle_t *sim7080g_handle, bool *connected);
+
 /// @brief Test the UART connection by sending a command and checking for a response
 bool sim7080g_test_uart_loopback(sim7080g_handle_t *sim7080g_handle);

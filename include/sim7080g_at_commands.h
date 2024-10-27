@@ -264,6 +264,12 @@ extern const at_cmd_t AT_CMEE;
 ///   - 7 Offline mode
 extern const at_cmd_t AT_CFUN;
 
+/// @brief EPS Network Registration - Enable or disable EPS network registration status
+extern const at_cmd_t AT_CEREG;
+
+/// @brief Query TCP/UDP Connection Status - Check current connection status
+extern const at_cmd_t AT_CASTATE;
+
 // TODO - AT+CGSN - request product serial number ID
 // TODO - AT+CGMI - request manf id
 // TODO - AT+CGMM - request model id
