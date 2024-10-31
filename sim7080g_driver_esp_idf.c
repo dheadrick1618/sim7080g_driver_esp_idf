@@ -14,6 +14,7 @@
 static const char *TAG = "SIM7080G Driver";
 
 // Static Fxn Declarations:
+static esp_err_t sim7080g_echo_off(const sim7080g_handle_t *sim7080g_handle);
 static esp_err_t sim7080g_uart_init(const sim7080g_uart_config_t sim7080g_uart_config);
 static void sim7080g_log_config_params(const sim7080g_handle_t *sim7080g_handle);
 static esp_err_t send_at_cmd(const sim7080g_handle_t *sim7080g_handle,
@@ -78,6 +79,14 @@ esp_err_t sim7080g_init(sim7080g_handle_t *sim7080g_handle)
             sim7080g_handle->mqtt_initialized = true;
         }
     }
+
+    err = sim7080g_echo_off(sim7080g_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to turn off echo: %s", esp_err_to_name(err));
+        return err;
+    }
+
     ESP_LOGI(TAG, "SIM7080G Driver initialized");
     return ESP_OK;
 }
@@ -2082,6 +2091,33 @@ esp_err_t sim7080g_is_application_layer_connected(const sim7080g_handle_t *handl
         return ESP_ERR_INVALID_RESPONSE;
     }
 
+    return ESP_OK;
+}
+
+static esp_err_t sim7080g_echo_off(const sim7080g_handle_t *sim7080g_handle)
+{
+    if (!sim7080g_handle || !sim7080g_handle->uart_initialized)
+    {
+        ESP_LOGE(TAG, "SIM7080G driver not initialized");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    char response[AT_RESPONSE_MAX_LEN] = {0};
+    esp_err_t ret = send_at_cmd(sim7080g_handle,
+                                &AT_ECHO_OFF,
+                                AT_CMD_TYPE_EXECUTE,
+                                NULL,
+                                response,
+                                sizeof(response),
+                                5000);
+
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to turn off echo");
+        return ret;
+    }
+
+    ESP_LOGI(TAG, "Echo off");
     return ESP_OK;
 }
 

@@ -9,6 +9,14 @@
 #define WRITE_CMD(cmd) cmd "="
 #define EXECUTE_CMD(cmd) cmd
 
+const at_cmd_t AT_ECHO_OFF = {
+    .name = "ATE0",
+    .description = "Echo Off - Disable command echo",
+    .test = {0},
+    .read = {0},
+    .write = {0},
+    .execute = {EXECUTE_CMD("ATE0"), "OK"}};
+
 const at_cmd_t AT_CPIN = {
     .name = "AT+CPIN",
     .description = "Enter PIN - Check if SIM card requires a PIN or if it's ready",

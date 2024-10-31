@@ -24,6 +24,8 @@ typedef struct
     at_cmd_info_t execute;
 } at_cmd_t;
 
+extern const at_cmd_t AT_ECHO_OFF;
+
 extern const at_cmd_t AT_CPIN;
 
 /// @brief Signal Quality Report - Get the current signal strength and bit error rate
