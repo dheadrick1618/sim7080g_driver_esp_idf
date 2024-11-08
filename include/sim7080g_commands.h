@@ -1,5 +1,5 @@
 
-#include "sim7080g_driver_esp_idf.h"
+#include "sim7080g_types.h"
 #include "sim7080g_at_cmds.h"
 #include "sim7080g_at_defs.h"
 

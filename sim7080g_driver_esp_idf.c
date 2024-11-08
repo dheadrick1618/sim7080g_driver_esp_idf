@@ -3,8 +3,7 @@
 #include <esp_log.h>
 #include <string.h>
 
-#include <sim7080g_uart.h>
-
+#include "sim7080g_uart.h"
 #include "sim7080g_driver_esp_idf.h"
 #include "sim7080g_at_cmds.h"
 

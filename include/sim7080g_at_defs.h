@@ -1,5 +1,7 @@
 #pragma once
 
+#include "sim7080g_types.h"
+
 typedef enum
 {
     AT_CMD_TYPE_TEST,

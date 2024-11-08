@@ -1,6 +1,7 @@
 
-#include <driver/uart.h>
+
 #include <esp_log.h>
+
 #include "sim7080g_uart.h"
 
 static const char *TAG = "SIM7080G UART";
