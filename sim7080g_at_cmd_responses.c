@@ -24,14 +24,9 @@ const char *cpin_status_to_str(cpin_status_t status)
     return strings[status];
 }
 
-cpin_status_t cpin_str_to_status(const char *status_str)
+cpin_status_t cpin_str_to_status(const char *const status_str)
 {
-    if (!status_str)
-    {
-        return CPIN_STATUS_UNKNOWN;
-    }
-
-    struct
+    static const struct
     {
         const char *str;
         cpin_status_t status;
@@ -45,9 +40,33 @@ cpin_status_t cpin_str_to_status(const char *status_str)
         {"SIM PIN2", CPIN_STATUS_SIM_PIN2},
         {"SIM PUK2", CPIN_STATUS_SIM_PUK2}};
 
-    for (size_t i = 0; i < sizeof(status_map) / sizeof(status_map[0]); i++)
+    if (NULL == status_str)
     {
-        if (strcmp(status_str, status_map[i].str) == 0)
+        return CPIN_STATUS_UNKNOWN;
+    }
+
+    /* Trim any trailing whitespace or \r\n */
+    char trimmed[32];
+    size_t len = strlen(status_str);
+    if (len >= sizeof(trimmed))
+    {
+        return CPIN_STATUS_UNKNOWN;
+    }
+
+    strncpy(trimmed, status_str, sizeof(trimmed) - 1U);
+    trimmed[sizeof(trimmed) - 1U] = '\0';
+
+    while (len > 0U && (trimmed[len - 1U] == ' ' ||
+                        trimmed[len - 1U] == '\r' ||
+                        trimmed[len - 1U] == '\n'))
+    {
+        trimmed[len - 1U] = '\0';
+        len--;
+    }
+
+    for (size_t i = 0U; i < (sizeof(status_map) / sizeof(status_map[0])); i++)
+    {
+        if (0 == strcmp(trimmed, status_map[i].str))
         {
             return status_map[i].status;
         }
@@ -56,29 +75,64 @@ cpin_status_t cpin_str_to_status(const char *status_str)
     return CPIN_STATUS_UNKNOWN;
 }
 
-esp_err_t parse_cpin_response(const char *response_str, cpin_response_t *response)
+esp_err_t parse_cpin_response(const char *const response_str, cpin_response_t *const response)
 {
-    if (!response_str || !response)
+    const char *const EXPECTED_PREFIX = "+CPIN: ";
+    const size_t PREFIX_LEN = 7U;
+    /* Use fixed size array instead of VLA */
+    char status_str[32U]; /* Fixed size buffer */
+    size_t status_len;
+    const char *status_start;
+    const char *line_end;
+
+    if ((NULL == response_str) || (NULL == response))
     {
         return ESP_ERR_INVALID_ARG;
     }
 
-    // Initialize response structure
-    memset(response, 0, sizeof(cpin_response_t));
+    /* Initialize response and local buffer */
+    (void)memset(response, 0, sizeof(cpin_response_t));
+    (void)memset(status_str, 0, sizeof(status_str));
 
-    // Extract status string from response
-    char status_str[16] = {0};
-    if (sscanf(response_str, "+CPIN: %15s", status_str) != 1)
+    /* Verify response starts with expected prefix */
+    if (0 != strncmp(response_str, EXPECTED_PREFIX, PREFIX_LEN))
     {
         return ESP_ERR_INVALID_RESPONSE;
     }
 
-    // Convert string status to enum
-    response->status = cpin_str_to_status(status_str);
+    /* Extract status string up to first \r or \n */
+    status_start = response_str + PREFIX_LEN;
+    line_end = strpbrk(status_start, "\r\n");
 
-    // Determine if new PIN is required based on status
-    response->requires_new_pin = (response->status == CPIN_STATUS_SIM_PUK ||
-                                  response->status == CPIN_STATUS_SIM_PUK2);
+    if (NULL != line_end)
+    {
+        status_len = (size_t)(line_end - status_start);
+    }
+    else
+    {
+        status_len = strlen(status_start);
+    }
+
+    /* Check if status string would fit in our buffer */
+    if ((0U == status_len) || (status_len >= sizeof(status_str)))
+    {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    /* Copy and null-terminate status string */
+    (void)memcpy(status_str, status_start, status_len);
+    status_str[status_len] = '\0';
+
+    /* Convert string status to enum */
+    response->status = cpin_str_to_status(status_str);
+    if (CPIN_STATUS_UNKNOWN == response->status)
+    {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    /* Set requires_new_pin flag */
+    response->requires_new_pin = ((CPIN_STATUS_SIM_PUK == response->status) ||
+                                  (CPIN_STATUS_SIM_PUK2 == response->status));
 
     return ESP_OK;
 }
