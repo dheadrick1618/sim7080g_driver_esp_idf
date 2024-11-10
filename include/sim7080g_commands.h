@@ -3,6 +3,7 @@
 
 #include "sim7080g_types.h"
 #include "sim7080g_at_cmds.h"
+#include "sim7080g_at_cmd_responses.h"
 
 /**
  *
@@ -21,7 +22,7 @@
 // Enable verbose error reporting (CMEE)
 
 // Check SIM status (CPIN)
-esp_err_t sim7080g_check_sim_status(const sim7080g_handle_t *sim7080g_handle);
+esp_err_t sim7080g_check_sim_status(const sim7080g_handle_t *handle, cpin_status_t *sim_status_out);
 
 // Check signal quality (CSQ)
 

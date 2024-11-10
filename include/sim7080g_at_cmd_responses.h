@@ -18,7 +18,8 @@ typedef enum
     CPIN_STATUS_SIM_PIN2 = 6,   // PIN2 required (for FDN)
     CPIN_STATUS_SIM_PUK2 = 7,   // PUK2 required
     CPIN_STATUS_UNKNOWN = 8,    // Unknown status
-    CPIN_STATUS_MAX
+    CPIN_STATUS_ERROR = 9,
+    CPIN_STATUS_MAX = 10
 } cpin_status_t;
 
 // Structure to hold CPIN response data

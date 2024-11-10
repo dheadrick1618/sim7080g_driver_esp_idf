@@ -1,5 +1,7 @@
 #include <string.h>
 #include <stdio.h>
+#include <esp_err.h>
+#include <esp_log.h>
 #include "sim7080g_at_cmd_responses.h"
 
 // --------------------- CPIN -------------------------//
@@ -56,33 +58,61 @@ cpin_status_t cpin_str_to_status(const char *status_str)
     return CPIN_STATUS_UNKNOWN;
 }
 
-esp_err_t parse_cpin_response(const char *response_str, cpin_response_t *response)
+esp_err_t parse_cpin_response(const char *response, cpin_response_t *parsed_response)
 {
-    if (!response_str || !response)
+    if ((NULL == response) || (NULL == parsed_response))
     {
         return ESP_ERR_INVALID_ARG;
     }
 
-    // Initialize response structure
-    memset(response, 0, sizeof(cpin_response_t));
+    cpin_response_t *cpin_resp = (cpin_response_t *)parsed_response;
 
-    // Extract status string from response
-    char status_str[16] = {0};
-    if (sscanf(response_str, "+CPIN: %15s", status_str) != 1)
+    // Find the start of the actual response after possible echo
+    const char *cpin_start = strstr(response, "+CPIN:");
+    if (NULL == cpin_start)
     {
+        ESP_LOGE("PARSE CPIN RESPONSE", "Could not find +CPIN: in response");
         return ESP_ERR_INVALID_RESPONSE;
     }
 
-    // Convert string status to enum
-    response->status = cpin_str_to_status(status_str);
+    // Skip past "+CPIN: "
+    cpin_start += 7;
 
-    // Determine if new PIN is required based on status
-    response->requires_new_pin = (response->status == CPIN_STATUS_SIM_PUK ||
-                                  response->status == CPIN_STATUS_SIM_PUK2);
+    // Remove any trailing whitespace/newlines
+    char cleaned_response[32] = {0};
+    strncpy(cleaned_response, cpin_start, sizeof(cleaned_response) - 1);
+    char *end = strchr(cleaned_response, '\r');
+    if (end != NULL)
+    {
+        *end = '\0';
+    }
+
+    // Now parse the status
+    if (0 == strcmp(cleaned_response, "READY"))
+    {
+        cpin_resp->status = CPIN_STATUS_READY;
+    }
+    else if (0 == strcmp(cleaned_response, "SIM PIN"))
+    {
+        cpin_resp->status = CPIN_STATUS_SIM_PIN;
+    }
+    else if (0 == strcmp(cleaned_response, "SIM PUK"))
+    {
+        cpin_resp->status = CPIN_STATUS_SIM_PUK;
+    }
+    // else if (0 == strcmp(cleaned_response, "NOT INSERTED"))
+    // {
+    //     cpin_resp->status = CPIN_STATUS_NOT_INSERTED;
+    // }
+    else
+    {
+        ESP_LOGE("PARSE CPIN RESPONSE", "Unknown CPIN status: %s", cleaned_response);
+        cpin_resp->status = CPIN_STATUS_ERROR;
+        return ESP_ERR_INVALID_RESPONSE;
+    }
 
     return ESP_OK;
 }
-
 // --------------------- CEREG -------------------------//
 // -----------------------------------------------------//
 // const char *cereg_mode_to_str(cereg_mode_t mode)
