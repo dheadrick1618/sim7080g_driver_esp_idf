@@ -1,10 +1,9 @@
+// This file holds all fxns and structs relating to specifc AT commands that can be sent to the sim7080g
 #pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
 #include <esp_err.h>
-
-
 
 // --------------------- CPIN -------------------------//
 // -----------------------------------------------------//

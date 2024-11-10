@@ -1,8 +1,19 @@
 #pragma once
 
-#include "sim7080g_at_defs.h"
+#include "sim7080g_types.h"
 
 extern const at_cmd_t AT_CPIN;
+
+// /// @brief Set Functionality - Set the functionality level of the device
+// /// @note Cycling the functionality level between 0 and 1 can be used to soft reset the device (effictively clearing any past errors)
+// /// @note Functionality levels:
+// ///   - 0: Minimum functionality (no network registration, no SMS, no call)
+// ///   - 1: Full functionality (network registration, SMS, call) [DEFAULT]
+// ///   - 4: Disable phone activity (no network registration, no SMS, no call)
+// ///   - 5 Factory test mode
+// ///   - 6 Reset device
+// ///   - 7 Offline mode
+extern const at_cmd_t AT_CFUN;
 
 // /// @brief Signal Quality Report - Get the current signal strength and bit error rate
 // /// @details This command returns the received signal strength indication (RSSI) and channel bit error rate (BER) from the ME.
@@ -230,17 +241,6 @@ extern const at_cmd_t AT_CPIN;
 // ///   - 1: Enable extended error reporting - show 'ERROR' followed by '+CME ERROR: <error code num>'
 // ///   - 2: Enable extended error reporting - show 'ERROR' followed by '+CMS ERROR: <err string>'
 // extern const at_cmd_t AT_CMEE;
-
-// /// @brief Set Functionality - Set the functionality level of the device
-// /// @note Cycling the functionality level between 0 and 1 can be used to soft reset the device (effictively clearing any past errors)
-// /// @note Functionality levels:
-// ///   - 0: Minimum functionality (no network registration, no SMS, no call)
-// ///   - 1: Full functionality (network registration, SMS, call) [DEFAULT]
-// ///   - 4: Disable phone activity (no network registration, no SMS, no call)
-// ///   - 5 Factory test mode
-// ///   - 6 Reset device
-// ///   - 7 Offline mode
-// extern const at_cmd_t AT_CFUN;
 
 // /// @brief EPS Network Registration - Enable or disable EPS network registration status
 // extern const at_cmd_t AT_CEREG;

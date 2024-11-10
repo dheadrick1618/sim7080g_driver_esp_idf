@@ -1,5 +1,3 @@
-
-
 #include <esp_log.h>
 
 #include "sim7080g_uart.h"

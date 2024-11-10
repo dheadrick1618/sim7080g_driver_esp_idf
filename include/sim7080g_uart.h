@@ -3,7 +3,6 @@
 #include <esp_err.h>
 #include <stdbool.h>
 #include <driver/uart.h>
-
 #include "sim7080g_types.h"
 
 #define SIM7080G_UART_BAUD_RATE 115200

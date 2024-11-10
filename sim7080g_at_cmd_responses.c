@@ -1,6 +1,6 @@
-#include "sim7080g_at_cmd_responses.h"
 #include <string.h>
 #include <stdio.h>
+#include "sim7080g_at_cmd_responses.h"
 
 // --------------------- CPIN -------------------------//
 // -----------------------------------------------------//

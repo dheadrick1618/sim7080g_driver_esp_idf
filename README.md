@@ -19,7 +19,7 @@ idf_component_register(SRCS "sim7080g_driver_dev_project.c"
 ```
 
 1. First create a handle for the driver.
-2. Set config structs used by driver
+2. Declare and define config structs used by driver
 3. Call the driver  'config' fxn - passing it these structs.
 4. Call the driver 'init' fxn.
 5. Call the driver 'connect to network bearer' fxn.

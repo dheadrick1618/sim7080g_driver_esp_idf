@@ -1,7 +1,8 @@
+// This file contains fxns used to command and interact with the sim7080g - these are built ontop of fxns that send, read, and parse AT commands
+#pragma once
 
 #include "sim7080g_types.h"
 #include "sim7080g_at_cmds.h"
-#include "sim7080g_at_defs.h"
 
 /**
  *

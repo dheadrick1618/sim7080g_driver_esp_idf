@@ -83,3 +83,49 @@ typedef struct sim7080g_handle_t
     bool mqtt_initialized;
     // ... other common fields
 } sim7080g_handle_t;
+
+// --------------------- COMMON AT Command Definitions -------------------------//
+
+// Base response structure all AT command responses inherit from
+typedef struct
+{
+    bool success;             // Indicates if command succeeded
+    const char *raw_response; // Original response string
+    esp_err_t error_code;     // Specific error code if any
+} at_response_base_t;
+
+typedef enum
+{
+    AT_CMD_TYPE_TEST = 0U,
+    AT_CMD_TYPE_READ,
+    AT_CMD_TYPE_WRITE,
+    AT_CMD_TYPE_EXECUTE,
+} at_cmd_type_t;
+
+typedef struct
+{
+    const char *cmd_string;
+    const char *response_format;
+} at_cmd_info_t;
+
+/// @brief  FULL definition of an AT command
+typedef struct
+{
+    const char *name;
+    const char *description;
+    at_cmd_info_t test;
+    at_cmd_info_t read;
+    at_cmd_info_t write;
+    at_cmd_info_t execute;
+} at_cmd_t;
+
+// Function pointer for response parsers - MOST AT commands will have a fxn for parsing their response
+typedef esp_err_t (*at_response_parser_fn)(const char *response_str, void *parsed_response);
+
+/// This is set within the sim7080g command fxn assoicated with using an AT command, before it is passed to the send_at_cmd_with_parser fxn
+typedef struct
+{
+    at_response_parser_fn parser;
+    uint32_t timeout_ms;
+    uint32_t retry_delay_ms;
+} at_cmd_handler_config_t;
