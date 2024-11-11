@@ -29,6 +29,14 @@ const at_cmd_t AT_CPIN = {
     .write = {WRITE_CMD("AT+CPIN"), "OK"},
     .execute = {0}};
 
+const at_cmd_t AT_CFUN = {
+    .name = "AT+CFUN",
+    .description = "Set Phone Functionality - Set phone functionality to minimum, full, or disable",
+    .test = {TEST_CMD("AT+CFUN"), "OK"},
+    .read = {READ_CMD("AT+CFUN"), "+CFUN: %d"},
+    .write = {WRITE_CMD("AT+CFUN"), "OK"},
+    .execute = {0}};
+
 // const at_cmd_t AT_CEREG = {
 //     .name = "AT+CEREG",
 //     .description = "EPS Network Registration Status - Controls and reports network registration and location information",
@@ -149,14 +157,6 @@ const at_cmd_t AT_CPIN = {
 //     .test = {TEST_CMD("AT+CMEE"), "OK"},
 //     .read = {READ_CMD("AT+CMEE"), "+CMEE: %d"},
 //     .write = {WRITE_CMD("AT+CMEE"), "OK"},
-//     .execute = {0}};
-
-// const at_cmd_t AT_CFUN = {
-//     .name = "AT+CFUN",
-//     .description = "Set Phone Functionality - Set phone functionality to minimum, full, or disable",
-//     .test = {TEST_CMD("AT+CFUN"), "OK"},
-//     .read = {READ_CMD("AT+CFUN"), "+CFUN: %d"},
-//     .write = {WRITE_CMD("AT+CFUN"), "OK"},
 //     .execute = {0}};
 
 // TODO - Implement this if its found relevant later to check  transport layer connection

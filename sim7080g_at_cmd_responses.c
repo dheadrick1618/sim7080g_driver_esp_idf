@@ -8,20 +8,20 @@
 // ------------------- TEST (AT) ----------------------//
 // ----------------------------------------------------//
 
-esp_err_t parse_at_test_response(const char *response_str, at_test_status_t *status)
+esp_err_t parse_at_test_response(const char *response_str, at_test_parsed_response_t *parsed_response)
 {
-    if (!response_str || !status)
+    if (!response_str || !parsed_response)
     {
         return ESP_ERR_INVALID_ARG;
     }
 
     if (strstr(response_str, "OK") != NULL)
     {
-        *status = TEST_STATUS_OK;
+        parsed_response->status = TEST_STATUS_OK;
     }
     else if (strstr(response_str, "ERROR") != NULL)
     {
-        *status = TEST_STATUS_ERROR;
+        parsed_response->status = TEST_STATUS_ERROR;
     }
     else
     {
@@ -46,15 +46,15 @@ const char *at_test_status_to_str(at_test_status_t status)
 
 // --------------------- CPIN -------------------------//
 // -----------------------------------------------------//
-esp_err_t parse_cpin_response(const char *response, cpin_response_t *parsed_response)
+esp_err_t parse_cpin_response(const char *response_str, cpin_parsed_response_t *parsed_response)
 {
-    if (response == NULL || parsed_response == NULL)
+    if (response_str == NULL || parsed_response == NULL)
     {
         return ESP_ERR_INVALID_ARG;
     }
 
     // Find the +CPIN: response in the string
-    const char *cpin_start = strstr(response, "+CPIN:");
+    const char *cpin_start = strstr(response_str, "+CPIN:");
     if (cpin_start == NULL)
     {
         // ESP_LOGE("FXN: parse_cpin_response", "Could not find +CPIN: in response");

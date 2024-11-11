@@ -11,12 +11,12 @@ static const char *TAG = "SIM7080G Commands for Interacting with device";
 
 static esp_err_t at_test_parser_wrapper(const char *response, void *parsed_response)
 {
-    return parse_at_test_response(response, (at_test_status_t *)parsed_response);
+    return parse_at_test_response(response, (at_test_parsed_response_t *)parsed_response);
 }
 
 static esp_err_t cpin_parser_wrapper(const char *response, void *parsed_response)
 {
-    return parse_cpin_response(response, (cpin_response_t *)parsed_response);
+    return parse_cpin_response(response, (cpin_parsed_response_t *)parsed_response);
 }
 
 // --------------------------------------- FXNS to use SIM7080G AT Commands --------------------------------------- //
@@ -33,7 +33,7 @@ esp_err_t sim7080g_test_at(const sim7080g_handle_t *handle, at_test_status_t *at
     }
     ESP_LOGI(TAG, "Sending: TEST AT command");
 
-    at_test_response_t response = {0};
+    at_test_parsed_response_t response = {0};
 
     static const at_cmd_handler_config_t config = {
         .parser = at_test_parser_wrapper, // Command-specific parser
@@ -73,7 +73,7 @@ esp_err_t sim7080g_check_sim_status(const sim7080g_handle_t *handle, cpin_status
 
     // Response structure only used within this function
     // The user only cares about the resultling status enum
-    cpin_response_t response = {0};
+    cpin_parsed_response_t response = {0};
 
     // Configure command handling
     static const at_cmd_handler_config_t config = {

@@ -14,12 +14,13 @@ typedef enum
     TEST_STATUS_MAX = 3
 } at_test_status_t;
 
+// Structure to hold response data
 typedef struct
 {
     at_test_status_t status;
-} at_test_response_t;
+} at_test_parsed_response_t;
 
-esp_err_t parse_at_test_response(const char *response_str, at_test_status_t *status);
+esp_err_t parse_at_test_response(const char *response_str, at_test_parsed_response_t *parsed_response);
 const char *at_test_status_to_str(at_test_status_t status);
 
 // --------------------- CPIN -------------------------//
@@ -44,11 +45,32 @@ typedef struct
 {
     cpin_status_t status;  // Current PIN status
     bool requires_new_pin; // Indicates if a new PIN is required (for PUK operations)
-} cpin_response_t;
+} cpin_parsed_response_t;
 
-esp_err_t parse_cpin_response(const char *response_str, cpin_response_t *response);
+esp_err_t parse_cpin_response(const char *response_str, cpin_parsed_response_t *parsed_response);
 const char *cpin_status_to_str(cpin_status_t status);
 cpin_status_t cpin_str_to_status(const char *status_str);
+
+// ----------------------- CFUN ------------------------//
+// ----------------------------------------------------//
+
+typedef enum
+{
+    CFUN_FUNCTIONALITY_MIN = 0,
+    CFUN_FUNCTIONALITY_FULL = 1,
+    CFUN_FUNCTIONALITY_DISABLE_RF_TX_AND_RX = 4,
+    CFUN_FUNCTIONALITY_FACTORY_TEST_MODE = 5,
+    CFUN_FUNCTIONALITY_RESET = 6,
+    CFUN_FUNCTIONALITY_OFFLINE_MODE = 7,
+    CFUN_FUNCTIONALITY_MAX = 8
+} cfun_functionality_t;
+
+typedef struct
+{
+    cfun_functionality_t functionality;
+} cfun_parsed_response_t;
+
+esp_err_t parse_cfun_response(const char *response_str, cfun_parsed_response_t *parsed_response);
 
 // --------------------- CEREG -------------------------//
 // -----------------------------------------------------//
