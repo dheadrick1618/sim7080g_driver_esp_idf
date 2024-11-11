@@ -55,6 +55,14 @@ const at_cmd_t AT_ATE = {
         "ATE", // Format string includes the mode value
         "OK"}};
 
+const at_cmd_t AT_CMEE = {
+    .name = "AT+CMEE",
+    .description = "Enable Verbose Error Reporting - Enable detailed error codes in response",
+    .test = {TEST_CMD("AT+CMEE"), "OK"},
+    .read = {READ_CMD("AT+CMEE"), "+CMEE: %d"},
+    .write = {WRITE_CMD("AT+CMEE"), "OK"},
+    .execute = {0}};
+
 // const at_cmd_t AT_CEREG = {
 //     .name = "AT+CEREG",
 //     .description = "EPS Network Registration Status - Controls and reports network registration and location information",
@@ -159,14 +167,6 @@ const at_cmd_t AT_ATE = {
 //     .test = {TEST_CMD("AT+SMSTATE"), "+SMSTATE: (0-2)"},
 //     .read = {READ_CMD("AT+SMSTATE"), "+SMSTATE: %d"},
 //     .write = {0},
-//     .execute = {0}};
-
-// const at_cmd_t AT_CMEE = {
-//     .name = "AT+CMEE",
-//     .description = "Enable Verbose Error Reporting - Enable detailed error codes in response",
-//     .test = {TEST_CMD("AT+CMEE"), "OK"},
-//     .read = {READ_CMD("AT+CMEE"), "+CMEE: %d"},
-//     .write = {WRITE_CMD("AT+CMEE"), "OK"},
 //     .execute = {0}};
 
 // TODO - Implement this if its found relevant later to check  transport layer connection

@@ -75,8 +75,7 @@ const char *cfun_functionality_to_str(cfun_functionality_t functionality);
 
 // --------------------- CSQ -------------------------//
 // ----------------------------------------------------//
-// --------------------- CSQ -------------------------//
-// ----------------------------------------------------//
+
 typedef enum
 {
     CSQ_RSSI_NOT_DETECTABLE = 99,
@@ -117,6 +116,25 @@ typedef struct
 
 esp_err_t parse_ate_response(const char *response_str, ate_parsed_response_t *parsed_response, at_cmd_type_t cmd_type);
 const char *ate_mode_to_str(ate_mode_t mode);
+
+// --------------------- CMEE -------------------------//
+// ----------------------------------------------------//
+
+typedef enum
+{
+    CMEE_MODE_DISABLE = 0,
+    CMEE_MODE_NUMERIC = 1,
+    CMEE_MODE_VERBOSE = 2,
+    CMEE_MODE_MAX = 3
+} cmee_mode_t;
+
+typedef struct
+{
+    cmee_mode_t mode;
+} cmee_parsed_response_t;
+
+esp_err_t parse_cmee_response(const char *response_str, cmee_parsed_response_t *parsed_response, at_cmd_type_t cmd_type);
+const char *cmee_mode_to_str(cmee_mode_t mode);
 
 // --------------------- CEREG -------------------------//
 // -----------------------------------------------------//

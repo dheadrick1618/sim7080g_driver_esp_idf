@@ -34,10 +34,16 @@ static esp_err_t ate_parser_wrapper(const char *response, void *parsed_response,
     return parse_ate_response(response, (ate_parsed_response_t *)parsed_response, cmd_type);
 }
 
+static esp_err_t cmee_parser_wrapper(const char *response, void *parsed_response, at_cmd_type_t cmd_type)
+{
+    return parse_cmee_response(response, (cmee_parsed_response_t *)parsed_response, cmd_type);
+}
+
 // --------------------------------------- FXNS to use SIM7080G AT Commands --------------------------------------- //
 // ----------------------------- (main driver uses these fxns inside its user exposed fxns) ------------------- //
 
 // Test AT communication with device (AT)
+// NOTE :  For some reason the device is sometimes picky and doesnt respond to this command if it is the first command it receives after power on
 esp_err_t sim7080g_test_at(const sim7080g_handle_t *handle, at_test_status_t *at_test_status_out)
 {
     if (handle == NULL || at_test_status_out == NULL)
@@ -241,7 +247,50 @@ esp_err_t sim7080g_set_echo_mode(const sim7080g_handle_t *handle, ate_mode_t mod
     return ESP_OK;
 }
 
-// Enable verbose error reporting (CMEE)
+// Set Error Report Mode (CMEE) - Used by drier to enable verbose error reporting - 3
+esp_err_t sim7080g_set_error_report_mode(const sim7080g_handle_t *handle, cmee_mode_t mode)
+{
+    if (handle == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (mode >= CMEE_MODE_MAX)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_LOGI(TAG, "Setting error report mode to: %s", cmee_mode_to_str(mode));
+
+    cmee_parsed_response_t response = {0};
+    char args[8] = {0}; // Buffer for the mode argument
+
+    // Format the mode argument
+    snprintf(args, sizeof(args), "%d", mode);
+
+    static const at_cmd_handler_config_t config = {
+        .parser = cmee_parser_wrapper,
+        .timeout_ms = 3000U,   // 3 second timeout should be sufficient for this simple command
+        .retry_delay_ms = 100U // 100ms between retries
+    };
+
+    esp_err_t ret = send_at_cmd_with_parser(
+        handle,
+        &AT_CMEE,
+        AT_CMD_TYPE_WRITE,
+        args,
+        &response,
+        &config);
+
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to set error report mode");
+        return ret;
+    }
+
+    ESP_LOGI(TAG, "Successfully set error report mode to: %s", cmee_mode_to_str(mode));
+    return ESP_OK;
+}
 
 // Get GPRS attached status
 

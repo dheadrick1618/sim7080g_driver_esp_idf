@@ -29,6 +29,7 @@ esp_err_t sim7080g_check_signal_quality(const sim7080g_handle_t *handle, int8_t 
 esp_err_t sim7080g_set_echo_mode(const sim7080g_handle_t *handle, ate_mode_t mode);
 
 // Enable verbose error reporting (CMEE)
+esp_err_t sim7080g_set_error_report_mode(const sim7080g_handle_t *handle, cmee_mode_t mode);
 
 // Get GPRS attached status
 

@@ -360,14 +360,14 @@ esp_err_t parse_ate_response(const char *response_str, ate_parsed_response_t *pa
         return ESP_ERR_INVALID_ARG;
     }
 
-    // For ATE command, we only need to verify OK response
+    // For ATE command, we only need to verify OK response (theres ONLY execution type command)
     // The mode is set by the command itself, not parsed from response
     if (strstr(response_str, "OK") != NULL)
     {
         return ESP_OK;
     }
 
-    return ESP_ERR_INVALID_RESPONSE;
+    return ESP_FAIL;
 }
 
 const char *ate_mode_to_str(ate_mode_t mode)
@@ -377,6 +377,68 @@ const char *ate_mode_to_str(ate_mode_t mode)
         "Echo mode on"};
 
     if (mode >= ATE_MODE_MAX)
+    {
+        return "Invalid Mode";
+    }
+    return strings[mode];
+}
+
+// --------------------- CMEE -------------------------//
+// ----------------------------------------------------//
+
+esp_err_t parse_cmee_response(const char *response_str, cmee_parsed_response_t *parsed_response, at_cmd_type_t cmd_type)
+{
+    if ((response_str == NULL) || (parsed_response == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (cmd_type == AT_CMD_TYPE_WRITE)
+    {
+        // For CMEE command, we only need to verify OK response
+        // The mode is set by the command itself, not parsed from response
+        if (strstr(response_str, "OK") != NULL)
+        {
+            return ESP_OK;
+        }
+    }
+
+    // Find the +CMEE: response in the string
+    const char *cmee_start = strstr(response_str, "+CMEE:");
+    if (cmee_start == NULL)
+    {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // Skip past "+CMEE: "
+    cmee_start += 6;
+
+    // Parse the mode
+    int mode = 0;
+    int items_matched = sscanf(cmee_start, " %d", &mode);
+
+    if (items_matched != 1)
+    {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    if ((mode < 0) || (mode >= (int)CMEE_MODE_MAX))
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    parsed_response->mode = (cmee_mode_t)mode;
+    return ESP_OK;
+}
+
+const char *cmee_mode_to_str(cmee_mode_t mode)
+{
+    static const char *const strings[] = {
+        "Disable CME ERROR Codes (just use 'ERROR' instead)",
+        "Enable Numeric CME ERROR codes",
+        "Enable Verbose CME ERROR codes"};
+
+    if (mode >= CMEE_MODE_MAX)
     {
         return "Invalid Mode";
     }

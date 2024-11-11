@@ -40,6 +40,9 @@ extern const at_cmd_t AT_CSQ;
 // Set command echo mode
 extern const at_cmd_t AT_ATE;
 
+/// @brief Set Command Echo Mode - Controls whether device echoes back commands
+extern const at_cmd_t AT_CMEE;
+
 // /// @brief Attach or Detach from GPRS Service
 // /// @details This command is used to attach the MT to, or detach the MT from, the GPRS service.
 // /// @param state
