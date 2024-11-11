@@ -25,13 +25,14 @@ typedef enum
 // GENERIC parser signature for AT command handler fxns. This is used to parse the response of an AT command
 //  The parsed response type is a void pointer here.
 //  In actual implementation this each parser fxns has an assocaited static wrapper fxn that casts the void pointer to the correct type
-typedef esp_err_t (*at_cmd_parser_t)(const char *response, void *parsed_response);
+// typedef esp_err_t (*at_cmd_parser_t)(const char *response, void *parsed_response);
+typedef esp_err_t (*at_response_parser_t)(const char *response_str, void *parsed_response, at_cmd_type_t cmd_type);
 
 typedef struct
 {
-    at_cmd_parser_t parser;  // Generic parser function pointer
-    uint32_t timeout_ms;     // Command timeout
-    uint32_t retry_delay_ms; // Delay between retries
+    at_response_parser_t parser; // Generic parser function pointer
+    uint32_t timeout_ms;         // Command timeout
+    uint32_t retry_delay_ms;     // Delay between retries
 } at_cmd_handler_config_t;
 
 /// @brief Verify handle and pointers are not NULL, that UART is initialized, and that response buffer is not empty

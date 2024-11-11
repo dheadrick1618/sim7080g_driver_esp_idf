@@ -20,7 +20,7 @@ typedef struct
     at_test_status_t status;
 } at_test_parsed_response_t;
 
-esp_err_t parse_at_test_response(const char *response_str, at_test_parsed_response_t *parsed_response);
+esp_err_t parse_at_test_response(const char *response_str, at_test_parsed_response_t *parsed_response, at_cmd_type_t cmd_type);
 const char *at_test_status_to_str(at_test_status_t status);
 
 // --------------------- CPIN -------------------------//
@@ -47,7 +47,7 @@ typedef struct
     bool requires_new_pin; // Indicates if a new PIN is required (for PUK operations)
 } cpin_parsed_response_t;
 
-esp_err_t parse_cpin_response(const char *response_str, cpin_parsed_response_t *parsed_response);
+esp_err_t parse_cpin_response(const char *response_str, cpin_parsed_response_t *parsed_response, at_cmd_type_t cmd_type);
 const char *cpin_status_to_str(cpin_status_t status);
 cpin_status_t cpin_str_to_status(const char *status_str);
 
@@ -70,8 +70,36 @@ typedef struct
     cfun_functionality_t functionality;
 } cfun_parsed_response_t;
 
-esp_err_t parse_cfun_response(const char *response_str, cfun_parsed_response_t *parsed_response);
+esp_err_t parse_cfun_response(const char *response_str, cfun_parsed_response_t *parsed_response, at_cmd_type_t cmd_type);
 const char *cfun_functionality_to_str(cfun_functionality_t functionality);
+
+// --------------------- CSQ -------------------------//
+// ----------------------------------------------------//
+// --------------------- CSQ -------------------------//
+// ----------------------------------------------------//
+typedef enum
+{
+    CSQ_RSSI_NOT_DETECTABLE = 99,
+    CSQ_RSSI_MAX = 32 // Values 0-31 represent actual signal levels
+} csq_rssi_t;
+
+typedef enum
+{
+    CSQ_BER_NOT_DETECTABLE = 99,
+    CSQ_BER_MAX = 8 // Values 0-7 represent actual BER levels
+} csq_ber_t;
+
+typedef struct
+{
+    csq_rssi_t rssi; // Received Signal Strength Indication
+    csq_ber_t ber;   // Bit Error Rate
+    int8_t rssi_dbm; // RSSI converted to dBm for easier interpretation
+} csq_parsed_response_t;
+
+esp_err_t parse_csq_response(const char *response_str, csq_parsed_response_t *parsed_response, at_cmd_type_t cmd_type);
+const char *csq_rssi_to_str(csq_rssi_t rssi);
+const char *csq_ber_to_str(csq_ber_t ber);
+int8_t csq_rssi_to_dbm(csq_rssi_t rssi);
 
 // --------------------- CEREG -------------------------//
 // -----------------------------------------------------//

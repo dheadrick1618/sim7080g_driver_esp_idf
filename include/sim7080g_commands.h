@@ -16,16 +16,18 @@
 // Test AT communication with device (AT)
 esp_err_t sim7080g_test_at(const sim7080g_handle_t *handle, at_test_status_t *test_status_out);
 
+// Check SIM status (CPIN)
+esp_err_t sim7080g_check_sim_status(const sim7080g_handle_t *handle, cpin_status_t *sim_status_out);
+
 // Cycle CFUN - soft reset (CFUN)
+esp_err_t sim7080g_set_functionality(const sim7080g_handle_t *handle, cfun_functionality_t fun_level);
+
+// Check signal quality (CSQ)
+esp_err_t sim7080g_check_signal_quality(const sim7080g_handle_t *handle, int8_t *rssi_dbm_out, uint8_t *ber_out);
 
 // Disable command Echo (ATE0)
 
 // Enable verbose error reporting (CMEE)
-
-// Check SIM status (CPIN)
-esp_err_t sim7080g_check_sim_status(const sim7080g_handle_t *handle, cpin_status_t *sim_status_out);
-
-// Check signal quality (CSQ)
 
 // Get GPRS attached status
 

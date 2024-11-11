@@ -232,7 +232,7 @@ esp_err_t send_at_cmd_with_parser(const sim7080g_handle_t *sim7080g_handle,
         // Parse response if parser provided
         if ((NULL != handler_config->parser) && (NULL != parsed_response))
         {
-            ret = handler_config->parser(response, parsed_response);
+            ret = handler_config->parser(response, parsed_response, type);
             if (ESP_OK != ret)
             {
                 ESP_LOGE(TAG, "Failed to parse response");

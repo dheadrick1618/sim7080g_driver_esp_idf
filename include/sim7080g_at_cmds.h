@@ -35,7 +35,7 @@ extern const at_cmd_t AT_CFUN;
 // ///   - 0-7: As RXQUAL values in the table in GSM 05.08 subclause 7.2.4
 // ///   - 99: Not known or not detectable
 // /// @note This setting is not saved (NO_SAVE)
-// extern const at_cmd_t AT_CSQ;
+extern const at_cmd_t AT_CSQ;
 
 // /// @brief Attach or Detach from GPRS Service
 // /// @details This command is used to attach the MT to, or detach the MT from, the GPRS service.

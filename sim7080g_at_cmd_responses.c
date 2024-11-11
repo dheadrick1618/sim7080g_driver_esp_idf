@@ -3,12 +3,13 @@
 #include <ctype.h> // For 'isspace' fxn
 #include <esp_err.h>
 #include <esp_log.h>
+#include "sim7080g_types.h"
 #include "sim7080g_at_cmd_responses.h"
 
 // ------------------- TEST (AT) ----------------------//
 // ----------------------------------------------------//
 
-esp_err_t parse_at_test_response(const char *response_str, at_test_parsed_response_t *parsed_response)
+esp_err_t parse_at_test_response(const char *response_str, at_test_parsed_response_t *parsed_response, at_cmd_type_t cmd_type)
 {
     if (!response_str || !parsed_response)
     {
@@ -46,11 +47,25 @@ const char *at_test_status_to_str(at_test_status_t status)
 
 // --------------------- CPIN -------------------------//
 // -----------------------------------------------------//
-esp_err_t parse_cpin_response(const char *response_str, cpin_parsed_response_t *parsed_response)
+esp_err_t parse_cpin_response(const char *response_str, cpin_parsed_response_t *parsed_response, at_cmd_type_t cmd_type)
 {
     if (response_str == NULL || parsed_response == NULL)
     {
         return ESP_ERR_INVALID_ARG;
+    }
+
+    // For WRITE command, just verify we got OK
+    if (cmd_type == AT_CMD_TYPE_WRITE)
+    {
+        if (strstr(response_str, "OK") != NULL)
+        {
+            return ESP_OK;
+        }
+        else
+        {
+            // TODO - Setup error handling fxn to log error
+        }
+        return ESP_ERR_INVALID_RESPONSE;
     }
 
     // Find the +CPIN: response in the string
@@ -158,36 +173,44 @@ cpin_status_t cpin_str_to_status(const char *status_str)
 // --------------------- CFUN -------------------------//
 // -----------------------------------------------------//
 
-esp_err_t parse_cfun_response(const char *response_str, cfun_parsed_response_t *parsed_response)
+esp_err_t parse_cfun_response(const char *response_str, cfun_parsed_response_t *parsed_response, at_cmd_type_t cmd_type)
 {
     if ((response_str == NULL) || (parsed_response == NULL))
     {
         return ESP_ERR_INVALID_ARG;
     }
 
-    // Find the +CFUN: response in the string
-    const char *cfun_start = strstr(response_str, "+CFUN:");
+    // For WRITE command, just verify we got OK
+    if (cmd_type == AT_CMD_TYPE_WRITE)
+    {
+        if (strstr(response_str, "OK") != NULL)
+        {
+            return ESP_OK;
+        }
+        else
+        {
+            // TODO - Setup error handling fxn to log error
+        }
+        return ESP_ERR_INVALID_RESPONSE;
+    }
 
+    const char *cfun_start = strstr(response_str, "+CFUN:");
     if (cfun_start == NULL)
     {
         return ESP_ERR_INVALID_RESPONSE;
     }
 
-    // Skip past "+CFUN: "
+    // Rest of the existing parsing logic for QUERY...
     cfun_start += 6;
-
     memset(parsed_response, 0, sizeof(cfun_parsed_response_t));
-
     int fun_level = 0;
-    int items_matched = sscanf(cfun_start, " %d %*[\r\n]", &fun_level); // consumes trailing whitespace  - match but dont store newline
+    int items_matched = sscanf(cfun_start, " %d %*[\r\n]", &fun_level);
 
-    // We want exactly one integer and nothing else (except \r\n)
     if (items_matched != 1)
     {
         return ESP_ERR_INVALID_RESPONSE;
     }
 
-    // Validate functionality level
     if ((fun_level < 0) || (fun_level >= (int)CFUN_FUNCTIONALITY_MAX))
     {
         return ESP_ERR_INVALID_STATE;
@@ -214,6 +237,117 @@ const char *cfun_functionality_to_str(cfun_functionality_t functionality)
         return "Invalid Status";
     }
     return strings[functionality];
+}
+
+// --------------------- CSQ -------------------------//
+// ----------------------------------------------------//
+
+esp_err_t parse_csq_response(const char *response_str, csq_parsed_response_t *parsed_response, at_cmd_type_t cmd_type)
+{
+    if ((response_str == NULL) || (parsed_response == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Find the +CSQ: response in the string
+    const char *csq_start = strstr(response_str, "+CSQ:");
+    if (csq_start == NULL)
+    {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // Skip past "+CSQ: "
+    csq_start += 5;
+
+    // Parse RSSI and BER values
+    int rssi = 0;
+    int ber = 0;
+    int items_matched = sscanf(csq_start, " %d,%d", &rssi, &ber);
+
+    if (items_matched != 2)
+    {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // Validate RSSI
+    if (((rssi < 0) || (rssi > 31)) && (rssi != CSQ_RSSI_NOT_DETECTABLE))
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    // Validate BER
+    if (((ber < 0) || (ber > 7)) && (ber != CSQ_BER_NOT_DETECTABLE))
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    parsed_response->rssi = (csq_rssi_t)rssi;
+    parsed_response->ber = (csq_ber_t)ber;
+    parsed_response->rssi_dbm = csq_rssi_to_dbm(parsed_response->rssi);
+
+    return ESP_OK;
+}
+
+const char *csq_rssi_to_str(csq_rssi_t rssi)
+{
+    if (rssi == CSQ_RSSI_NOT_DETECTABLE)
+    {
+        return "Not detectable";
+    }
+    else if (rssi >= CSQ_RSSI_MAX)
+    {
+        return "Invalid RSSI";
+    }
+    else
+    {
+        static char buffer[32];
+        snprintf(buffer, sizeof(buffer), "%d (%d dBm)", rssi, csq_rssi_to_dbm(rssi));
+        return buffer;
+    }
+}
+
+const char *csq_ber_to_str(csq_ber_t ber)
+{
+    if (ber == CSQ_BER_NOT_DETECTABLE)
+    {
+        return "Not detectable";
+    }
+    else if (ber >= CSQ_BER_MAX)
+    {
+        return "Invalid BER";
+    }
+    else
+    {
+        static char buffer[16];
+        snprintf(buffer, sizeof(buffer), "%d%%", ber);
+        return buffer;
+    }
+}
+
+int8_t csq_rssi_to_dbm(csq_rssi_t rssi)
+{
+    if (rssi == CSQ_RSSI_NOT_DETECTABLE)
+    {
+        return INT8_MIN; // Use INT8_MIN to represent "not detectable"
+    }
+    else if (rssi == 0)
+    {
+        return -115;
+    }
+    else if (rssi == 1)
+    {
+        return -111;
+    }
+    else if (rssi >= 2 && rssi <= 30)
+    {
+        return (int8_t)(-110 + ((rssi - 2) * 2));
+    }
+    else if (rssi == 31)
+    {
+        return -52;
+    }
+
+    return INT8_MIN; // Invalid RSSI
 }
 
 // --------------------- CEREG -------------------------//

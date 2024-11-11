@@ -37,6 +37,14 @@ const at_cmd_t AT_CFUN = {
     .write = {WRITE_CMD("AT+CFUN"), "OK"},
     .execute = {0}};
 
+const at_cmd_t AT_CSQ = {
+    .name = "AT+CSQ",
+    .description = "Signal Quality Report - Get current signal strength (RSSI) and bit error rate (BER)",
+    .test = {TEST_CMD("AT+CSQ"), "+CSQ: (0-31,99),(0-7,99)"},
+    .read = {0},
+    .write = {0},
+    .execute = {EXECUTE_CMD("AT+CSQ"), "+CSQ: %d,%d"}};
+
 // const at_cmd_t AT_CEREG = {
 //     .name = "AT+CEREG",
 //     .description = "EPS Network Registration Status - Controls and reports network registration and location information",
@@ -46,14 +54,6 @@ const at_cmd_t AT_CFUN = {
 //     .read = {READ_CMD("AT+CEREG"), "+CEREG: %d,%d[,[\"%[^\"]\"],[\"%[^\"]\"],[\"%[^\"]\"],%d][,,[,[%[^]],[%[^]]]]]"},
 //     .write = {WRITE_CMD("AT+CEREG"), "OK"},
 //     .execute = {0}};
-
-// const at_cmd_t AT_CSQ = {
-//     .name = "AT+CSQ",
-//     .description = "Signal Quality Report - Get current signal strength (RSSI) and bit error rate (BER)",
-//     .test = {TEST_CMD("AT+CSQ"), "OK"},
-//     .read = {0},
-//     .write = {0},
-//     .execute = {EXECUTE_CMD("AT+CSQ"), "+CSQ: %d,%d"}};
 
 // const at_cmd_t AT_CGATT = {
 //     .name = "AT+CGATT",

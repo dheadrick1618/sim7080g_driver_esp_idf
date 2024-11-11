@@ -9,19 +9,24 @@
 
 static const char *TAG = "SIM7080G Commands for Interacting with device";
 
-static esp_err_t at_test_parser_wrapper(const char *response, void *parsed_response)
+static esp_err_t at_test_parser_wrapper(const char *response, void *parsed_response, at_cmd_type_t cmd_type)
 {
-    return parse_at_test_response(response, (at_test_parsed_response_t *)parsed_response);
+    return parse_at_test_response(response, (at_test_parsed_response_t *)parsed_response, cmd_type);
 }
 
-static esp_err_t cpin_parser_wrapper(const char *response, void *parsed_response)
+static esp_err_t cpin_parser_wrapper(const char *response, void *parsed_response, at_cmd_type_t cmd_type)
 {
-    return parse_cpin_response(response, (cpin_parsed_response_t *)parsed_response);
+    return parse_cpin_response(response, (cpin_parsed_response_t *)parsed_response, cmd_type);
 }
 
-static esp_err_t cfun_parser_wrapper(const char *response, void *parsed_response)
+static esp_err_t cfun_parser_wrapper(const char *response, void *parsed_response, at_cmd_type_t cmd_type)
 {
-    return parse_cfun_response(response, (cfun_parsed_response_t *)parsed_response);
+    return parse_cfun_response(response, (cfun_parsed_response_t *)parsed_response, cmd_type);
+}
+
+static esp_err_t csq_parser_wrapper(const char *response, void *parsed_response, at_cmd_type_t cmd_type)
+{
+    return parse_csq_response(response, (csq_parsed_response_t *)parsed_response, cmd_type);
 }
 
 // --------------------------------------- FXNS to use SIM7080G AT Commands --------------------------------------- //
@@ -100,7 +105,7 @@ esp_err_t sim7080g_check_sim_status(const sim7080g_handle_t *handle, cpin_status
     return ret;
 }
 
-// Cycle CFUN - soft reset (CFUN)
+// Set functionality level (CFUN) - this is used by driver fxn to 'soft reset' device (CFUN=0, then CFUN=1)
 esp_err_t sim7080g_set_functionality(const sim7080g_handle_t *handle, cfun_functionality_t fun_level)
 {
     if (handle == NULL)
@@ -149,11 +154,46 @@ esp_err_t sim7080g_set_functionality(const sim7080g_handle_t *handle, cfun_funct
     return ESP_OK;
 }
 
+// Check signal quality (CSQ) - used by driver 'is physical layer connected' fxn which verifies signal strength is acceptable
+esp_err_t sim7080g_check_signal_quality(const sim7080g_handle_t *handle, int8_t *rssi_dbm_out, uint8_t *ber_out)
+{
+    if ((handle == NULL) || (rssi_dbm_out == NULL) || (ber_out == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_LOGI(TAG, "Sending: CHECK SIGNAL QUALITY command");
+
+    csq_parsed_response_t response = {0};
+
+    static const at_cmd_handler_config_t config = {
+        .parser = csq_parser_wrapper,
+        .timeout_ms = 5000U,
+        .retry_delay_ms = 1000U};
+
+    esp_err_t ret = send_at_cmd_with_parser(
+        handle,
+        &AT_CSQ,
+        AT_CMD_TYPE_EXECUTE,
+        NULL,
+        &response,
+        &config);
+
+    if (ret == ESP_OK)
+    {
+        *rssi_dbm_out = response.rssi_dbm;
+        *ber_out = (uint8_t)response.ber;
+        ESP_LOGI(TAG, "Signal Quality - RSSI: %s, BER: %s",
+                 csq_rssi_to_str(response.rssi),
+                 csq_ber_to_str(response.ber));
+    }
+
+    return ret;
+}
+
 // Disable command Echo (ATE0)
 
 // Enable verbose error reporting (CMEE)
-
-// Check signal quality (CSQ)
 
 // Get GPRS attached status
 
