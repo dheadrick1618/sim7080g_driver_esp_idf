@@ -37,6 +37,9 @@ extern const at_cmd_t AT_CFUN;
 // /// @note This setting is not saved (NO_SAVE)
 extern const at_cmd_t AT_CSQ;
 
+// Set command echo mode
+extern const at_cmd_t AT_ATE;
+
 // /// @brief Attach or Detach from GPRS Service
 // /// @details This command is used to attach the MT to, or detach the MT from, the GPRS service.
 // /// @param state

@@ -350,6 +350,39 @@ int8_t csq_rssi_to_dbm(csq_rssi_t rssi)
     return INT8_MIN; // Invalid RSSI
 }
 
+// --------------------- ATE -------------------------//
+// ----------------------------------------------------//
+
+esp_err_t parse_ate_response(const char *response_str, ate_parsed_response_t *parsed_response, at_cmd_type_t cmd_type)
+{
+    if ((response_str == NULL) || (parsed_response == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // For ATE command, we only need to verify OK response
+    // The mode is set by the command itself, not parsed from response
+    if (strstr(response_str, "OK") != NULL)
+    {
+        return ESP_OK;
+    }
+
+    return ESP_ERR_INVALID_RESPONSE;
+}
+
+const char *ate_mode_to_str(ate_mode_t mode)
+{
+    static const char *const strings[] = {
+        "Echo mode off",
+        "Echo mode on"};
+
+    if (mode >= ATE_MODE_MAX)
+    {
+        return "Invalid Mode";
+    }
+    return strings[mode];
+}
+
 // --------------------- CEREG -------------------------//
 // -----------------------------------------------------//
 // const char *cereg_mode_to_str(cereg_mode_t mode)

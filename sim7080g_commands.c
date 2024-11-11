@@ -29,6 +29,11 @@ static esp_err_t csq_parser_wrapper(const char *response, void *parsed_response,
     return parse_csq_response(response, (csq_parsed_response_t *)parsed_response, cmd_type);
 }
 
+static esp_err_t ate_parser_wrapper(const char *response, void *parsed_response, at_cmd_type_t cmd_type)
+{
+    return parse_ate_response(response, (ate_parsed_response_t *)parsed_response, cmd_type);
+}
+
 // --------------------------------------- FXNS to use SIM7080G AT Commands --------------------------------------- //
 // ----------------------------- (main driver uses these fxns inside its user exposed fxns) ------------------- //
 
@@ -192,6 +197,49 @@ esp_err_t sim7080g_check_signal_quality(const sim7080g_handle_t *handle, int8_t 
 }
 
 // Disable command Echo (ATE0)
+esp_err_t sim7080g_set_echo_mode(const sim7080g_handle_t *handle, ate_mode_t mode)
+{
+    if (handle == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (mode >= ATE_MODE_MAX)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_LOGI(TAG, "Setting command echo mode to: %s", ate_mode_to_str(mode));
+
+    ate_parsed_response_t response = {0};
+    char args[8] = {0}; // Buffer for the mode argument
+
+    // Format the mode argument
+    snprintf(args, sizeof(args), "%d", mode);
+
+    static const at_cmd_handler_config_t config = {
+        .parser = ate_parser_wrapper,
+        .timeout_ms = 1000U,   // 1 second timeout should be sufficient for this simple command
+        .retry_delay_ms = 100U // 100ms between retries
+    };
+
+    esp_err_t ret = send_at_cmd_with_parser(
+        handle,
+        &AT_ATE,
+        AT_CMD_TYPE_EXECUTE,
+        args,
+        &response,
+        &config);
+
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to set echo mode");
+        return ret;
+    }
+
+    ESP_LOGI(TAG, "Successfully set echo mode to: %s", ate_mode_to_str(mode));
+    return ESP_OK;
+}
 
 // Enable verbose error reporting (CMEE)
 

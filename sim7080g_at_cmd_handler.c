@@ -89,6 +89,13 @@ esp_err_t format_at_cmd(const at_cmd_info_t *cmd_info,
         // A 'write' type command CANNOT have no arguments (its format is AT+<CMD>=<ARGS> )
         return ESP_FAIL;
     }
+    // Handle EXECUTE command with arguments (special case for commands like ATE)
+    else if ((AT_CMD_TYPE_EXECUTE == type) && (NULL != args))
+    {
+        ESP_LOGI(TAG, "AT_CMD_TYPE_EXECUTE with argument: %s", args);
+        written_len = snprintf(at_cmd, at_cmd_size, "%s%s\r\n",
+                               cmd_info->cmd_string, args);
+    }
     else // IF its NOT a write type command
     {
         written_len = snprintf(at_cmd, at_cmd_size, "%s\r\n",

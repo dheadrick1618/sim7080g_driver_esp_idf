@@ -45,6 +45,16 @@ const at_cmd_t AT_CSQ = {
     .write = {0},
     .execute = {EXECUTE_CMD("AT+CSQ"), "+CSQ: %d,%d"}};
 
+const at_cmd_t AT_ATE = {
+    .name = "ATE",
+    .description = "Set Command Echo Mode - Controls whether device echoes back commands",
+    .test = {0},  // ATE has no test command
+    .read = {0},  // ATE has no read command
+    .write = {0}, // ATE has no write command
+    .execute = {
+        "ATE", // Format string includes the mode value
+        "OK"}};
+
 // const at_cmd_t AT_CEREG = {
 //     .name = "AT+CEREG",
 //     .description = "EPS Network Registration Status - Controls and reports network registration and location information",

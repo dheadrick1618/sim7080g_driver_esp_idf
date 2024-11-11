@@ -26,6 +26,7 @@ esp_err_t sim7080g_set_functionality(const sim7080g_handle_t *handle, cfun_funct
 esp_err_t sim7080g_check_signal_quality(const sim7080g_handle_t *handle, int8_t *rssi_dbm_out, uint8_t *ber_out);
 
 // Disable command Echo (ATE0)
+esp_err_t sim7080g_set_echo_mode(const sim7080g_handle_t *handle, ate_mode_t mode);
 
 // Enable verbose error reporting (CMEE)
 

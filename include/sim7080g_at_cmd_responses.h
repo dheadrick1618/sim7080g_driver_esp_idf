@@ -101,6 +101,23 @@ const char *csq_rssi_to_str(csq_rssi_t rssi);
 const char *csq_ber_to_str(csq_ber_t ber);
 int8_t csq_rssi_to_dbm(csq_rssi_t rssi);
 
+// --------------------- ATE -------------------------//
+// ----------------------------------------------------//
+typedef enum
+{
+    ATE_MODE_OFF = 0,
+    ATE_MODE_ON = 1,
+    ATE_MODE_MAX = 2
+} ate_mode_t;
+
+typedef struct
+{
+    ate_mode_t mode;
+} ate_parsed_response_t;
+
+esp_err_t parse_ate_response(const char *response_str, ate_parsed_response_t *parsed_response, at_cmd_type_t cmd_type);
+const char *ate_mode_to_str(ate_mode_t mode);
+
 // --------------------- CEREG -------------------------//
 // -----------------------------------------------------//
 // typedef enum
