@@ -71,6 +71,7 @@ typedef struct
 } cfun_parsed_response_t;
 
 esp_err_t parse_cfun_response(const char *response_str, cfun_parsed_response_t *parsed_response);
+const char *cfun_functionality_to_str(cfun_functionality_t functionality);
 
 // --------------------- CEREG -------------------------//
 // -----------------------------------------------------//

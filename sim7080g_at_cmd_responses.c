@@ -155,6 +155,67 @@ cpin_status_t cpin_str_to_status(const char *status_str)
     return CPIN_STATUS_UNKNOWN;
 }
 
+// --------------------- CFUN -------------------------//
+// -----------------------------------------------------//
+
+esp_err_t parse_cfun_response(const char *response_str, cfun_parsed_response_t *parsed_response)
+{
+    if ((response_str == NULL) || (parsed_response == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Find the +CFUN: response in the string
+    const char *cfun_start = strstr(response_str, "+CFUN:");
+
+    if (cfun_start == NULL)
+    {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // Skip past "+CFUN: "
+    cfun_start += 6;
+
+    memset(parsed_response, 0, sizeof(cfun_parsed_response_t));
+
+    int fun_level = 0;
+    int items_matched = sscanf(cfun_start, " %d %*[\r\n]", &fun_level); // consumes trailing whitespace  - match but dont store newline
+
+    // We want exactly one integer and nothing else (except \r\n)
+    if (items_matched != 1)
+    {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // Validate functionality level
+    if ((fun_level < 0) || (fun_level >= (int)CFUN_FUNCTIONALITY_MAX))
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    parsed_response->functionality = (cfun_functionality_t)fun_level;
+    return ESP_OK;
+}
+
+const char *cfun_functionality_to_str(cfun_functionality_t functionality)
+{
+    static const char *const strings[] = {
+        "Minimum functionality",
+        "Full functionality",
+        "Invalid status", // 2 is not used
+        "Invalid status", // 3 is not used
+        "Disable RF circuits",
+        "Factory Test Mode",
+        "Reset",
+        "Offline Mode"};
+
+    if (functionality >= CFUN_FUNCTIONALITY_MAX)
+    {
+        return "Invalid Status";
+    }
+    return strings[functionality];
+}
+
 // --------------------- CEREG -------------------------//
 // -----------------------------------------------------//
 // const char *cereg_mode_to_str(cereg_mode_t mode)

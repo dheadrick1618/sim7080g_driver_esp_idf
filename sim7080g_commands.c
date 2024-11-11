@@ -19,10 +19,13 @@ static esp_err_t cpin_parser_wrapper(const char *response, void *parsed_response
     return parse_cpin_response(response, (cpin_parsed_response_t *)parsed_response);
 }
 
+static esp_err_t cfun_parser_wrapper(const char *response, void *parsed_response)
+{
+    return parse_cfun_response(response, (cfun_parsed_response_t *)parsed_response);
+}
+
 // --------------------------------------- FXNS to use SIM7080G AT Commands --------------------------------------- //
 // ----------------------------- (main driver uses these fxns inside its user exposed fxns) ------------------- //
-
-// Cycle CFUN - soft reset (CFUN)
 
 // Test AT communication with device (AT)
 esp_err_t sim7080g_test_at(const sim7080g_handle_t *handle, at_test_status_t *at_test_status_out)
@@ -57,10 +60,6 @@ esp_err_t sim7080g_test_at(const sim7080g_handle_t *handle, at_test_status_t *at
 
     return ret;
 }
-
-// Disable command Echo (ATE0)
-
-// Enable verbose error reporting (CMEE)
 
 // Check SIM status (CPIN)
 esp_err_t sim7080g_check_sim_status(const sim7080g_handle_t *handle, cpin_status_t *sim_status_out)
@@ -100,6 +99,59 @@ esp_err_t sim7080g_check_sim_status(const sim7080g_handle_t *handle, cpin_status
 
     return ret;
 }
+
+// Cycle CFUN - soft reset (CFUN)
+esp_err_t sim7080g_set_functionality(const sim7080g_handle_t *handle, cfun_functionality_t fun_level)
+{
+    if (handle == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (fun_level >= CFUN_FUNCTIONALITY_MAX)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_LOGI(TAG, "Setting phone functionality level to: %s", cfun_functionality_to_str(fun_level));
+
+    cfun_parsed_response_t response = {0};
+    char args[8] = {0}; // Buffer for the function level argument
+
+    // Format the function level argument
+    snprintf(args, sizeof(args), "%d", fun_level);
+
+    static const at_cmd_handler_config_t config = {
+        .parser = cfun_parser_wrapper,
+        .timeout_ms = 10000U,   // 10 second timeout as per spec
+        .retry_delay_ms = 1000U // 1 second between retries
+    };
+
+    // Send command and parse response
+    esp_err_t ret = send_at_cmd_with_parser(
+        handle,            // Device handle
+        &AT_CFUN,          // Command definition
+        AT_CMD_TYPE_WRITE, // Command type
+        args,              // Function level argument
+        &response,         // Response structure
+        &config            // Command config
+    );
+
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to set phone functionality level");
+        return ret;
+    }
+
+    ESP_LOGI(TAG, "Successfully set phone functionality level to: %s",
+             cfun_functionality_to_str(response.functionality));
+
+    return ESP_OK;
+}
+
+// Disable command Echo (ATE0)
+
+// Enable verbose error reporting (CMEE)
 
 // Check signal quality (CSQ)
 
