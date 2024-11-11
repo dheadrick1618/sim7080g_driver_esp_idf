@@ -9,6 +9,16 @@
 #define WRITE_CMD(cmd) cmd "="
 #define EXECUTE_CMD(cmd) cmd
 
+///@brief The 'TEST' AT command simply sends 'AT' to the device which should response with OK, indicating communication is working
+///@note The 'test' field is empty because the command is the same as the name (so in our design it is structured like an EXECUTE type command)
+const at_cmd_t AT_TEST = {
+    .name = "AT",
+    .description = "Test AT Command - Test communication with device",
+    .test = {0},
+    .read = {0},
+    .write = {0},
+    .execute = {EXECUTE_CMD("AT"), "OK"}};
+
 const at_cmd_t AT_CPIN = {
     .name = "AT+CPIN",
     .description = "Enter PIN - Controls SIM card PIN operations",

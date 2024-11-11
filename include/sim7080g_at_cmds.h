@@ -2,6 +2,9 @@
 
 #include "sim7080g_types.h"
 
+/// @brief Used to check if device can be communicated with via AT commands (- does it respond at all)
+extern const at_cmd_t AT_TEST;
+
 extern const at_cmd_t AT_CPIN;
 
 // /// @brief Set Functionality - Set the functionality level of the device

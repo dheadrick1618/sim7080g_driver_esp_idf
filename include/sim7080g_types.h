@@ -74,14 +74,13 @@ typedef struct
     bool async_mode;
 } mqtt_parameters_t;
 
-// Core handle structure
+// Core handle structure used by all user exposed API fxns
 typedef struct sim7080g_handle_t
 {
     sim7080g_uart_config_t uart_config;
     sim7080g_mqtt_config_t mqtt_config;
     bool uart_initialized;
     bool mqtt_initialized;
-    // ... other common fields
 } sim7080g_handle_t;
 
 // --------------------- COMMON AT Command Definitions -------------------------//
@@ -118,14 +117,3 @@ typedef struct
     at_cmd_info_t write;
     at_cmd_info_t execute;
 } at_cmd_t;
-
-// Function pointer for response parsers - MOST AT commands will have a fxn for parsing their response
-typedef esp_err_t (*at_response_parser_fn)(const char *response_str, void *parsed_response);
-
-/// This is set within the sim7080g command fxn assoicated with using an AT command, before it is passed to the send_at_cmd_with_parser fxn
-typedef struct
-{
-    at_response_parser_fn parser;
-    uint32_t timeout_ms;
-    uint32_t retry_delay_ms;
-} at_cmd_handler_config_t;

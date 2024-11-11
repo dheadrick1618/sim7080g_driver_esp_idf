@@ -4,14 +4,9 @@
 
 #include "sim7080g_at_cmd_handler.h"
 
-// --------- Used for the send AT command fxn --------- //
-#define AT_RESPONSE_MAX_LEN 256U
-#define AT_CMD_MAX_LEN 256U
-#define AT_CMD_MAX_RETRIES 4U // TODO - Maybe give each command a specific retry count
-
 static const char *TAG = "SIM7080G Device Commands";
 
-// ------------clude --------------------- STATIC / HELPER FXNS --------------------------------------- //
+// --------------------------------- STATIC / HELPER FXNS --------------------------------------- //
 
 esp_err_t validate_at_cmd_params(const sim7080g_handle_t *sim7080g_handle,
                                  const at_cmd_t *cmd,
@@ -89,7 +84,12 @@ esp_err_t format_at_cmd(const at_cmd_info_t *cmd_info,
         written_len = snprintf(at_cmd, at_cmd_size, "%s%s\r\n",
                                cmd_info->cmd_string, args);
     }
-    else
+    else if ((AT_CMD_TYPE_WRITE == type) && (NULL == args))
+    {
+        // A 'write' type command CANNOT have no arguments (its format is AT+<CMD>=<ARGS> )
+        return ESP_FAIL;
+    }
+    else // IF its NOT a write type command
     {
         written_len = snprintf(at_cmd, at_cmd_size, "%s\r\n",
                                cmd_info->cmd_string);
@@ -177,7 +177,7 @@ esp_err_t send_at_cmd_with_parser(const sim7080g_handle_t *sim7080g_handle,
                                   const at_cmd_handler_config_t *handler_config)
 {
     char at_cmd[AT_CMD_MAX_LEN] = {0};
-    char response[AT_RESPONSE_MAX_LEN] = {0};
+    char response[AT_CMD_RESPONSE_MAX_LEN] = {0};
     const at_cmd_info_t *cmd_info = NULL;
     esp_err_t ret;
 
@@ -206,6 +206,10 @@ esp_err_t send_at_cmd_with_parser(const sim7080g_handle_t *sim7080g_handle,
             vTaskDelay(pdMS_TO_TICKS(handler_config->retry_delay_ms));
             ESP_LOGI(TAG, "Retrying command (attempt %u/%u)", // Change to %u
                      retry + 1U, AT_CMD_MAX_RETRIES);
+        }
+        else
+        {
+            ESP_LOGI(TAG, "Sending command RAW: %s", at_cmd);
         }
 
         ret = send_receive_at_cmd(sim7080g_handle, at_cmd, response,

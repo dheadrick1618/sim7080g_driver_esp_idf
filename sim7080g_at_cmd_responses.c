@@ -1,11 +1,108 @@
 #include <string.h>
 #include <stdio.h>
+#include <ctype.h> // For 'isspace' fxn
 #include <esp_err.h>
 #include <esp_log.h>
 #include "sim7080g_at_cmd_responses.h"
 
+// ------------------- TEST (AT) ----------------------//
+// ----------------------------------------------------//
+
+esp_err_t parse_at_test_response(const char *response_str, at_test_status_t *status)
+{
+    if (!response_str || !status)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (strstr(response_str, "OK") != NULL)
+    {
+        *status = TEST_STATUS_OK;
+    }
+    else if (strstr(response_str, "ERROR") != NULL)
+    {
+        *status = TEST_STATUS_ERROR;
+    }
+    else
+    {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    return ESP_OK;
+}
+
+const char *at_test_status_to_str(at_test_status_t status)
+{
+    static const char *const strings[] = {
+        "OK",
+        "ERROR"};
+
+    if (status >= TEST_STATUS_MAX)
+    {
+        return "Invalid Status";
+    }
+    return strings[status];
+}
+
 // --------------------- CPIN -------------------------//
 // -----------------------------------------------------//
+esp_err_t parse_cpin_response(const char *response, cpin_response_t *parsed_response)
+{
+    if (response == NULL || parsed_response == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Find the +CPIN: response in the string
+    const char *cpin_start = strstr(response, "+CPIN:");
+    if (cpin_start == NULL)
+    {
+        // ESP_LOGE("FXN: parse_cpin_response", "Could not find +CPIN: in response");
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // Skip past "+CPIN: "
+    cpin_start += 7;
+
+    // Find the end of the status string (look for CR, LF, or null)
+    const char *end = strpbrk(cpin_start, "\r\n");
+    if (end == NULL)
+    {
+        end = cpin_start + strlen(cpin_start);
+    }
+
+    // Create a temporary buffer for the status string
+    char status_str[32] = {0};
+    size_t len = end - cpin_start;
+    if (len >= sizeof(status_str))
+    {
+        return ESP_ERR_INVALID_SIZE;
+    }
+    strncpy(status_str, cpin_start, len);
+    status_str[len] = '\0';
+
+    // Remove any trailing whitespace
+    while (len > 0 && isspace((unsigned char)status_str[len - 1]))
+    {
+        status_str[--len] = '\0';
+    }
+
+    // Convert the status string to enum
+    parsed_response->status = cpin_str_to_status(status_str);
+    if (parsed_response->status == CPIN_STATUS_UNKNOWN)
+    {
+        // ESP_LOGE("FXN: parse_cpin_response", "Unknown CPIN status: %s", status_str);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // Set requires_new_pin based on status
+    parsed_response->requires_new_pin = (parsed_response->status == CPIN_STATUS_SIM_PUK ||
+                                         parsed_response->status == CPIN_STATUS_PH_SIM_PUK ||
+                                         parsed_response->status == CPIN_STATUS_SIM_PUK2);
+
+    return ESP_OK;
+}
+
 const char *cpin_status_to_str(cpin_status_t status)
 {
     static const char *const strings[] = {
@@ -58,61 +155,6 @@ cpin_status_t cpin_str_to_status(const char *status_str)
     return CPIN_STATUS_UNKNOWN;
 }
 
-esp_err_t parse_cpin_response(const char *response, cpin_response_t *parsed_response)
-{
-    if ((NULL == response) || (NULL == parsed_response))
-    {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    cpin_response_t *cpin_resp = (cpin_response_t *)parsed_response;
-
-    // Find the start of the actual response after possible echo
-    const char *cpin_start = strstr(response, "+CPIN:");
-    if (NULL == cpin_start)
-    {
-        ESP_LOGE("PARSE CPIN RESPONSE", "Could not find +CPIN: in response");
-        return ESP_ERR_INVALID_RESPONSE;
-    }
-
-    // Skip past "+CPIN: "
-    cpin_start += 7;
-
-    // Remove any trailing whitespace/newlines
-    char cleaned_response[32] = {0};
-    strncpy(cleaned_response, cpin_start, sizeof(cleaned_response) - 1);
-    char *end = strchr(cleaned_response, '\r');
-    if (end != NULL)
-    {
-        *end = '\0';
-    }
-
-    // Now parse the status
-    if (0 == strcmp(cleaned_response, "READY"))
-    {
-        cpin_resp->status = CPIN_STATUS_READY;
-    }
-    else if (0 == strcmp(cleaned_response, "SIM PIN"))
-    {
-        cpin_resp->status = CPIN_STATUS_SIM_PIN;
-    }
-    else if (0 == strcmp(cleaned_response, "SIM PUK"))
-    {
-        cpin_resp->status = CPIN_STATUS_SIM_PUK;
-    }
-    // else if (0 == strcmp(cleaned_response, "NOT INSERTED"))
-    // {
-    //     cpin_resp->status = CPIN_STATUS_NOT_INSERTED;
-    // }
-    else
-    {
-        ESP_LOGE("PARSE CPIN RESPONSE", "Unknown CPIN status: %s", cleaned_response);
-        cpin_resp->status = CPIN_STATUS_ERROR;
-        return ESP_ERR_INVALID_RESPONSE;
-    }
-
-    return ESP_OK;
-}
 // --------------------- CEREG -------------------------//
 // -----------------------------------------------------//
 // const char *cereg_mode_to_str(cereg_mode_t mode)

@@ -6,10 +6,7 @@
 #include "sim7080g_uart.h"
 #include "sim7080g_driver_esp_idf.h"
 #include "sim7080g_at_cmds.h"
-
-#define AT_CMD_MAX_LEN 256
-#define AT_CMD_MAX_RETRIES 4
-#define AT_RESPONSE_MAX_LEN 256
+#include "sim7080g_commands.h"
 
 static const char *TAG = "SIM7080G Driver";
 
@@ -41,6 +38,28 @@ esp_err_t sim7080g_init(sim7080g_handle_t *sim7080g_handle)
     {
         ESP_LOGI(TAG, "UART initialized");
         sim7080g_handle->uart_initialized = true;
+    }
+    vTaskDelay(pdMS_TO_TICKS(500)); // Give UART time to init
+
+    // Send test AT command to ensure we can communicate with device
+    at_test_status_t at_test_status;
+    err = sim7080g_test_at(sim7080g_handle, &at_test_status);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error testing AT command: %s", esp_err_to_name(err));
+        return err;
+    }
+    else
+    {
+        if (at_test_status == TEST_STATUS_OK)
+        {
+            ESP_LOGI(TAG, "AT command test passed");
+        }
+        else
+        {
+            ESP_LOGE(TAG, "AT command test failed");
+            return ESP_FAIL;
+        }
     }
 
     // The sim7080g can remain powered and init while the ESP32 restarts - so it may not be necessary to always set the mqtt params on driver init

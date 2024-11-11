@@ -8,13 +8,31 @@
 #include "sim7080g_types.h"
 #include "sim7080g_at_cmds.h"
 
-// Specific type for device response to AT commands (differentiate a system/driver error with and device response status)
+// --------- Used for the send AT command fxn --------- //
+#define AT_CMD_RESPONSE_MAX_LEN 256U
+#define AT_CMD_MAX_LEN 256U
+#define AT_CMD_MAX_RETRIES 5U // TODO - Maybe give each command a specific retry count
+
+// Specific error type for device response to AT command error returns (differentiate a system/driver error with and device response status)
+// i.e. the sim7080g device returning an 'error' is not the same as the driver code failing to send the command (which is system/driver error)
 typedef enum
 {
     AT_RESPONSE_OK = 0,
     AT_RESPONSE_ERROR,
     AT_RESPONSE_UNEXPECTED
 } at_response_status_t;
+
+// GENERIC parser signature for AT command handler fxns. This is used to parse the response of an AT command
+//  The parsed response type is a void pointer here.
+//  In actual implementation this each parser fxns has an assocaited static wrapper fxn that casts the void pointer to the correct type
+typedef esp_err_t (*at_cmd_parser_t)(const char *response, void *parsed_response);
+
+typedef struct
+{
+    at_cmd_parser_t parser;  // Generic parser function pointer
+    uint32_t timeout_ms;     // Command timeout
+    uint32_t retry_delay_ms; // Delay between retries
+} at_cmd_handler_config_t;
 
 /// @brief Verify handle and pointers are not NULL, that UART is initialized, and that response buffer is not empty
 esp_err_t validate_at_cmd_params(const sim7080g_handle_t *sim7080g_handle,

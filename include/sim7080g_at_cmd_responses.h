@@ -5,6 +5,23 @@
 #include <stdbool.h>
 #include <esp_err.h>
 
+// ------------------- TEST (AT) ----------------------//
+// ----------------------------------------------------//
+typedef enum
+{
+    TEST_STATUS_OK = 1,
+    TEST_STATUS_ERROR = 2,
+    TEST_STATUS_MAX = 3
+} at_test_status_t;
+
+typedef struct
+{
+    at_test_status_t status;
+} at_test_response_t;
+
+esp_err_t parse_at_test_response(const char *response_str, at_test_status_t *status);
+const char *at_test_status_to_str(at_test_status_t status);
+
 // --------------------- CPIN -------------------------//
 // -----------------------------------------------------//
 typedef enum
@@ -29,8 +46,8 @@ typedef struct
     bool requires_new_pin; // Indicates if a new PIN is required (for PUK operations)
 } cpin_response_t;
 
-const char *cpin_status_to_str(cpin_status_t status);
 esp_err_t parse_cpin_response(const char *response_str, cpin_response_t *response);
+const char *cpin_status_to_str(cpin_status_t status);
 cpin_status_t cpin_str_to_status(const char *status_str);
 
 // --------------------- CEREG -------------------------//

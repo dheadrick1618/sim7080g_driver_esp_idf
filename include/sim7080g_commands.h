@@ -13,9 +13,10 @@
  *
  */
 
-// Cycle CFUN - soft reset (CFUN)
-
 // Test AT communication with device (AT)
+esp_err_t sim7080g_test_at(const sim7080g_handle_t *handle, at_test_status_t *test_status_out);
+
+// Cycle CFUN - soft reset (CFUN)
 
 // Disable command Echo (ATE0)
 

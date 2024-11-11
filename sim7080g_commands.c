@@ -9,11 +9,54 @@
 
 static const char *TAG = "SIM7080G Commands for Interacting with device";
 
+static esp_err_t at_test_parser_wrapper(const char *response, void *parsed_response)
+{
+    return parse_at_test_response(response, (at_test_status_t *)parsed_response);
+}
+
+static esp_err_t cpin_parser_wrapper(const char *response, void *parsed_response)
+{
+    return parse_cpin_response(response, (cpin_response_t *)parsed_response);
+}
+
 // --------------------------------------- FXNS to use SIM7080G AT Commands --------------------------------------- //
+// ----------------------------- (main driver uses these fxns inside its user exposed fxns) ------------------- //
 
 // Cycle CFUN - soft reset (CFUN)
 
 // Test AT communication with device (AT)
+esp_err_t sim7080g_test_at(const sim7080g_handle_t *handle, at_test_status_t *at_test_status_out)
+{
+    if (handle == NULL || at_test_status_out == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+    ESP_LOGI(TAG, "Sending: TEST AT command");
+
+    at_test_response_t response = {0};
+
+    static const at_cmd_handler_config_t config = {
+        .parser = at_test_parser_wrapper, // Command-specific parser
+        .timeout_ms = 5000U,              // Command timeout
+        .retry_delay_ms = 1000U           // Delay between retries
+    };
+
+    esp_err_t ret = send_at_cmd_with_parser(handle,              // Device handle
+                                            &AT_TEST,            // Command definition
+                                            AT_CMD_TYPE_EXECUTE, // Command type (TECHINCALLY its an EXECUTE command type, despite the name)
+                                            NULL,                // No arguments for TEST
+                                            &response,           // Response structure
+                                            &config              // Command config
+    );
+
+    if (ret == ESP_OK)
+    {
+        *at_test_status_out = response.status;
+        ESP_LOGI(TAG, "AT Test Status: %s", at_test_status_to_str(*at_test_status_out));
+    }
+
+    return ret;
+}
 
 // Disable command Echo (ATE0)
 
@@ -26,6 +69,7 @@ esp_err_t sim7080g_check_sim_status(const sim7080g_handle_t *handle, cpin_status
     {
         return ESP_ERR_INVALID_ARG;
     }
+    ESP_LOGI(TAG, "Sending: CHECK SIM STATUS command");
 
     // Response structure only used within this function
     // The user only cares about the resultling status enum
@@ -33,7 +77,7 @@ esp_err_t sim7080g_check_sim_status(const sim7080g_handle_t *handle, cpin_status
 
     // Configure command handling
     static const at_cmd_handler_config_t config = {
-        .parser = parse_cpin_response, // Command-specific parser
+        .parser = cpin_parser_wrapper, // Command-specific parser
         .timeout_ms = 5000U,           // Command timeout
         .retry_delay_ms = 1000U        // Delay between retries
     };
@@ -50,10 +94,7 @@ esp_err_t sim7080g_check_sim_status(const sim7080g_handle_t *handle, cpin_status
 
     if (ret == ESP_OK)
     {
-        // Only update output parameter if command succeeded
         *sim_status_out = response.status;
-
-        // Log the result
         ESP_LOGI(TAG, "SIM Status: %s", cpin_status_to_str(response.status));
     }
 
