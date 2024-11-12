@@ -13,6 +13,8 @@
 #define AT_CMD_MAX_LEN 256U
 #define AT_CMD_MAX_RETRIES 5U // TODO - Maybe give each command a specific retry count
 
+#define AT_CMD_RESPONSE_PROMPT ">"
+
 #define AT_CMD_UART_READ_CHUNK_SIZE 32U
 #define AT_CMD_UART_READ_INTERVAL_MS 10U
 #define AT_CMD_UART_FLUSH_DELAY_MS 100U
@@ -94,3 +96,9 @@ esp_err_t send_at_cmd_with_parser(const sim7080g_handle_t *sim7080g_handle,
                                   const char *args,
                                   void *parsed_response,
                                   const at_cmd_handler_config_t *handler_config);
+
+esp_err_t send_receive_publish_cmd(const sim7080g_handle_t *sim7080g_handle,
+                                   const char *at_cmd,
+                                   char *response,
+                                   size_t response_size,
+                                   uint32_t timeout_ms);

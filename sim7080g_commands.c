@@ -74,6 +74,11 @@ static esp_err_t smconf_parser_wrapper(const char *response, void *parsed_respon
     return parse_smconf_response(response, (smconf_parsed_response_t *)parsed_response, cmd_type);
 }
 
+static esp_err_t smconn_parser_wrapper(const char *response, void *parsed_response, at_cmd_type_t cmd_type)
+{
+    return parse_smconn_response(response, (smconn_parsed_response_t *)parsed_response, cmd_type);
+}
+
 // --------------------------------------- FXNS to use SIM7080G AT Commands --------------------------------------- //
 // ----------------------------- (main driver uses these fxns inside its user exposed fxns) ------------------- //
 
@@ -834,7 +839,144 @@ esp_err_t sim7080g_set_mqtt_param(const sim7080g_handle_t *handle,
 }
 
 // Connect to MQTT broker
+esp_err_t sim7080g_mqtt_connect_to_broker(const sim7080g_handle_t *handle)
+{
+    if (handle == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    static const char *TAG = "sim7080g_mqtt_connect";
+
+    smconn_parsed_response_t parsed_response = {0};
+
+    // Configure extended timeout for MQTT connection
+    at_cmd_handler_config_t handler_config = {
+        .parser = smconn_parser_wrapper,
+        .timeout_ms = 10000U,   // 10 seconds timeout for connection
+        .retry_delay_ms = 1000U // 1 second between retries
+    };
+
+    esp_err_t err = send_at_cmd_with_parser(
+        handle,
+        &AT_SMCONN,
+        AT_CMD_TYPE_EXECUTE,
+        NULL,
+        &parsed_response,
+        &handler_config);
+
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to execute SMCONN command");
+        return err;
+    }
+
+    // Handle specific connection status responses
+    switch (parsed_response.status)
+    {
+    case SMCONN_STATUS_SUCCESS:
+        ESP_LOGI(TAG, "Successfully connected to MQTT broker");
+        return ESP_OK;
+
+    case SMCONN_STATUS_ERROR:
+        ESP_LOGE(TAG, "Failed to connect to MQTT broker");
+        return ESP_FAIL;
+
+    default:
+        ESP_LOGE(TAG, "Unexpected connection status: %d", parsed_response.status);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+    return ESP_FAIL;
+}
 // Disconnect from MQTT broker
 
 // Publish to MQTT broker
+esp_err_t sim7080g_mqtt_publish(const sim7080g_handle_t *handle,
+                                const char *topic,
+                                const char *message,
+                                uint8_t qos,
+                                bool retain)
+{
+    if ((NULL == handle) || (NULL == topic) || (NULL == message))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    static const char *TAG = "sim7080g_mqtt_publish";
+    char at_cmd[AT_CMD_MAX_LEN] = {0};
+    char response[AT_CMD_RESPONSE_MAX_LEN] = {0};
+    esp_err_t err;
+
+    // Validate parameters
+    size_t topic_len = strlen(topic);
+    size_t message_len = strlen(message);
+
+    if ((topic_len >= MQTT_MAX_TOPIC_LEN) || (message_len >= MQTT_MAX_MESSAGE_LEN))
+    {
+        ESP_LOGE(TAG, "Topic or message too long");
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    if (qos > 2U)
+    {
+        ESP_LOGE(TAG, "Invalid QoS level");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Format command
+    int32_t written_len = snprintf(at_cmd, sizeof(at_cmd),
+                                   "AT+SMPUB=\"%s\",%zu,%u,%d\r\n",
+                                   topic, message_len, qos, retain ? 1 : 0);
+
+    if ((written_len < 0) || ((size_t)written_len >= sizeof(at_cmd)))
+    {
+        ESP_LOGE(TAG, "Command formatting failed");
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    ESP_LOGI(TAG, "Publishing message to topic %s", topic);
+
+    // Send command and wait for prompt
+    err = send_receive_publish_cmd(handle, at_cmd, response,
+                                   sizeof(response), 5000U);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to receive prompt");
+        return err;
+    }
+
+    // Send message content with CRLF
+    char content_with_crlf[MQTT_MAX_MESSAGE_LEN + 3];
+    written_len = snprintf(content_with_crlf, sizeof(content_with_crlf),
+                           "%s\r\n", message);
+
+    if ((written_len < 0) || ((size_t)written_len >= sizeof(content_with_crlf)))
+    {
+        ESP_LOGE(TAG, "Message formatting failed");
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    // Send the message content
+    err = uart_write_bytes(handle->uart_config.port_num,
+                           content_with_crlf, strlen(content_with_crlf));
+    if (err < 0)
+    {
+        ESP_LOGE(TAG, "Failed to send message content");
+        return ESP_FAIL;
+    }
+
+    // Wait for final OK
+    memset(response, 0, sizeof(response));
+    err = read_uart_response(handle, response, sizeof(response), 5000U,
+                             AT_CMD_TYPE_WRITE);
+    if (err != ESP_OK || strstr(response, "OK") == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to get successful response after sending content");
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "Successfully published message");
+    return ESP_OK;
+}
+
 // Subscribe to MQTT broker

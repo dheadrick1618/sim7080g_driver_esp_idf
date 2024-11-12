@@ -405,3 +405,83 @@ esp_err_t send_at_cmd_with_parser(const sim7080g_handle_t *sim7080g_handle,
     ESP_LOGE(TAG, "Command failed after %u attempts", AT_CMD_MAX_RETRIES);
     return ESP_FAIL;
 }
+
+esp_err_t send_receive_publish_cmd(const sim7080g_handle_t *sim7080g_handle,
+                                   const char *at_cmd,
+                                   char *response,
+                                   size_t response_size,
+                                   uint32_t timeout_ms)
+{
+    if ((NULL == sim7080g_handle) || (NULL == at_cmd) ||
+        (NULL == response) || (0U == response_size))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_LOGI(TAG, "Sending MQTT publish command: %s", at_cmd);
+
+    // Flush UART before sending new command
+    uart_flush(sim7080g_handle->uart_config.port_num);
+    vTaskDelay(pdMS_TO_TICKS(AT_CMD_UART_FLUSH_DELAY_MS));
+
+    // Send command
+    int32_t bytes_written = uart_write_bytes(sim7080g_handle->uart_config.port_num,
+                                             at_cmd, strlen(at_cmd));
+    if (bytes_written < 0)
+    {
+        ESP_LOGE(TAG, "Failed to send command");
+        return ESP_FAIL;
+    }
+
+    uint32_t start_time = pdTICKS_TO_MS(xTaskGetTickCount());
+    size_t total_bytes_read = 0U;
+    char temp_buffer[AT_CMD_UART_READ_CHUNK_SIZE];
+
+    // Clear response buffer
+    memset(response, 0, response_size);
+
+    while ((pdTICKS_TO_MS(xTaskGetTickCount()) - start_time) < timeout_ms)
+    {
+        // Read in smaller chunks
+        int32_t bytes_read = uart_read_bytes(sim7080g_handle->uart_config.port_num,
+                                             (uint8_t *)temp_buffer,
+                                             sizeof(temp_buffer) - 1U,
+                                             pdMS_TO_TICKS(AT_CMD_UART_READ_INTERVAL_MS));
+
+        if (bytes_read > 0)
+        {
+            // Ensure we don't overflow the response buffer
+            if ((total_bytes_read + (size_t)bytes_read) >= response_size)
+            {
+                ESP_LOGE(TAG, "Response buffer overflow");
+                return ESP_FAIL;
+            }
+
+            // Append new data to response
+            memcpy(response + total_bytes_read, temp_buffer, (size_t)bytes_read);
+            total_bytes_read += (size_t)bytes_read;
+            response[total_bytes_read] = '\0';
+
+            ESP_LOGI(TAG, "Received partial response: %s", response);
+
+            // Check for prompt
+            if (strstr(response, AT_CMD_RESPONSE_PROMPT) != NULL)
+            {
+                ESP_LOGI(TAG, "Received prompt");
+                return ESP_OK;
+            }
+
+            // Check for error
+            if (strstr(response, AT_CMD_RESPONSE_TERMINATOR_ERROR) != NULL)
+            {
+                ESP_LOGE(TAG, "Received error response");
+                return ESP_FAIL;
+            }
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+
+    ESP_LOGW(TAG, "Timeout waiting for prompt");
+    return ESP_ERR_TIMEOUT;
+}

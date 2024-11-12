@@ -1318,6 +1318,82 @@ const char *smconf_qos_to_str(smconf_qos_t qos)
     return strings[qos];
 }
 
+// --------------------- SMCONN -------------------------//
+// ----------------------------------------------------//
+
+esp_err_t parse_smconn_response(const char *response_str, smconn_parsed_response_t *parsed_response, at_cmd_type_t cmd_type)
+{
+    if ((response_str == NULL) || (parsed_response == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (strstr(response_str, "OK") != NULL)
+    {
+        parsed_response->status = SMCONN_STATUS_SUCCESS;
+        return ESP_OK;
+    }
+    else if (strstr(response_str, "ERROR") != NULL)
+    {
+        parsed_response->status = SMCONN_STATUS_ERROR;
+        return ESP_OK;
+    }
+
+    return ESP_ERR_INVALID_RESPONSE;
+}
+
+// --------------------- SMPUB -------------------------//
+// ----------------------------------------------------//
+esp_err_t parse_smpub_response(const char *response_str, smpub_parsed_response_t *parsed_response, at_cmd_type_t cmd_type)
+{
+    if ((response_str == NULL) || (parsed_response == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (cmd_type == AT_CMD_TYPE_TEST)
+    {
+        if (strstr(response_str, "+SMPUB:") != NULL && strstr(response_str, "OK"))
+        {
+            return ESP_OK;
+        }
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // For write command
+    if (cmd_type == AT_CMD_TYPE_WRITE)
+    {
+        if (strstr(response_str, ">") != NULL)
+        {
+            parsed_response->status = SMPUB_STATUS_SUCCESS;
+            return ESP_OK;
+        }
+        else if (strstr(response_str, "ERROR") != NULL)
+        {
+            parsed_response->status = SMPUB_STATUS_ERROR;
+            return ESP_OK;
+        }
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    return ESP_ERR_INVALID_RESPONSE;
+}
+
+const char *smpub_status_to_str(smpub_status_t status)
+{
+    static const char *const strings[] = {
+        "Success",
+        "Error",
+        "Timeout",
+        "Not Connected"};
+
+    if (status >= SMPUB_STATUS_MAX)
+    {
+        return "Invalid Status";
+    }
+    return strings[status];
+}
+
 // --------------------- CEREG -------------------------//
 // -----------------------------------------------------//
 // const char *cereg_mode_to_str(cereg_mode_t mode)

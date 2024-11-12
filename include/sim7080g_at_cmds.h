@@ -199,7 +199,8 @@ extern const at_cmd_t AT_SMCONF;
 // ///   - OK
 // /// @return On failure:
 // ///   - ERROR
-// extern const at_cmd_t AT_SMCONN;
+//  Connect to MQTT broker
+extern const at_cmd_t AT_SMCONN;
 
 // /// @brief Subscribe Packet - Subscribe to an MQTT topic
 // /// @details This command is used to subscribe to a specified MQTT topic.
@@ -224,7 +225,8 @@ extern const at_cmd_t AT_SMCONF;
 // ///   - ERROR
 // /// @note After sending the command, enter the message content and press CTRL+Z to send
 // /// @note The test command returns the supported ranges for each parameter
-// extern const at_cmd_t AT_SMPUB;
+// Publish to MQTT broker
+extern const at_cmd_t AT_SMPUB;
 
 // /// @brief Unsubscribe Packet - Unsubscribe from an MQTT topic
 // /// @details This command is used to unsubscribe from a previously subscribed MQTT topic.

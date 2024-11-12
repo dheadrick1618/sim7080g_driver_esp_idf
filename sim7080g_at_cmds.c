@@ -137,6 +137,29 @@ const at_cmd_t AT_SMCONF = {
     .write = {WRITE_CMD("AT+SMCONF"), "OK"},
     .execute = {0}};
 
+const at_cmd_t AT_SMCONN = {
+    .name = "AT+SMCONN",
+    .description = "MQTT Connect - Establish connection to configured MQTT broker",
+    .test = {0},  // No test command
+    .read = {0},  // No read command
+    .write = {0}, // No write command
+    .execute = {
+        EXECUTE_CMD("AT+SMCONN"),
+        "OK"}};
+
+const at_cmd_t AT_SMPUB = {
+    .name = "AT+SMPUB",
+    .description = "MQTT Publish - Publish message to specified topic with QoS and retain settings",
+    .test = {
+        TEST_CMD("AT+SMPUB"),
+        "+SMPUB: 128,(0-1024),(0-2),(0-1)"},
+    .read = {0}, // No read command
+    .write = {
+        WRITE_CMD("AT+SMPUB"),
+        ">" // Special case - expects > prompt then message content
+    },
+    .execute = {0}};
+
 // const at_cmd_t AT_CEREG = {
 //     .name = "AT+CEREG",
 //     .description = "EPS Network Registration Status - Controls and reports network registration and location information",
@@ -146,14 +169,6 @@ const at_cmd_t AT_SMCONF = {
 //     .read = {READ_CMD("AT+CEREG"), "+CEREG: %d,%d[,[\"%[^\"]\"],[\"%[^\"]\"],[\"%[^\"]\"],%d][,,[,[%[^]],[%[^]]]]]"},
 //     .write = {WRITE_CMD("AT+CEREG"), "OK"},
 //     .execute = {0}};
-
-// const at_cmd_t AT_SMCONN = {
-//     .name = "AT+SMCONN",
-//     .description = "MQTT Connect - Establish connection to configured MQTT broker",
-//     .test = {0},
-//     .read = {0},
-//     .write = {0},
-//     .execute = {EXECUTE_CMD("AT+SMCONN"), "OK"}};
 
 // const at_cmd_t AT_SMSUB = {
 //     .name = "AT+SMSUB",

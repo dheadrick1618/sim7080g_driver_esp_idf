@@ -410,6 +410,47 @@ esp_err_t parse_smconf_response(const char *response_str, smconf_parsed_response
 const char *smconf_param_to_str(smconf_param_t param);
 const char *smconf_qos_to_str(smconf_qos_t qos);
 
+// --------------------- SMCONN -------------------------//
+// ----------------------------------------------------//
+typedef enum
+{
+    SMCONN_STATUS_SUCCESS = 0,
+    SMCONN_STATUS_ERROR,
+    SMCONN_STATUS_MAX
+} smconn_status_t;
+
+typedef struct
+{
+    smconn_status_t status;
+} smconn_parsed_response_t;
+
+// Add function declarations to sim7080g_at_cmd_responses.h
+esp_err_t parse_smconn_response(const char *response_str, smconn_parsed_response_t *parsed_response, at_cmd_type_t cmd_type);
+
+// --------------------- SMPUB -------------------------//
+// ----------------------------------------------------//
+
+typedef enum
+{
+    SMPUB_STATUS_SUCCESS = 0,
+    SMPUB_STATUS_ERROR,
+    SMPUB_STATUS_TIMEOUT,
+    SMPUB_STATUS_NOT_CONNECTED,
+    SMPUB_STATUS_MAX
+} smpub_status_t;
+
+#define MQTT_MAX_TOPIC_LEN 128U
+#define MQTT_MAX_MESSAGE_LEN 1024U
+
+typedef struct
+{
+    smpub_status_t status;
+    char response_topic[MQTT_MAX_TOPIC_LEN];
+    char response_message[MQTT_MAX_MESSAGE_LEN];
+} smpub_parsed_response_t;
+
+esp_err_t parse_smpub_response(const char *response_str, smpub_parsed_response_t *parsed_response, at_cmd_type_t cmd_type);
+
 // --------------------- CEREG -------------------------//
 // -----------------------------------------------------//
 // typedef enum
