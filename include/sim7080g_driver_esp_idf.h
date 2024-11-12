@@ -1,3 +1,6 @@
+/**
+ * THESE are the fxns the user will call to interact with the SIM7080G - this should be the only header they need to include to use the driver
+ */
 #pragma once
 
 #include <esp_err.h>
@@ -15,9 +18,9 @@ esp_err_t sim7080g_config(sim7080g_handle_t *sim7080g_handle,
 esp_err_t sim7080g_init(sim7080g_handle_t *sim7080g_handle);
 // esp_err_t sim7080g_deinit(sim7080g_handle_t *sim7080g_handle);
 
-// // Connect to network (follows sim com example command sequence)
-// // /// @brief Send series of AT commands to set the device various network settings to connect to LTE network bearer
-// esp_err_t sim7080g_connect_to_network_bearer(const sim7080g_handle_t *sim7080g_handle, const char *apn);
+// Connect to network(follows sim com example command sequence)
+/// @brief Send series of AT commands to set the device various network settings to connect to LTE network bearer
+esp_err_t sim7080g_connect_to_network_bearer(const sim7080g_handle_t *sim7080g_handle, const char *apn);
 
 // // Connect to MQTT broker
 // esp_err_t sim7080g_mqtt_connect_to_broker(const sim7080g_handle_t *sim7080g_handle);

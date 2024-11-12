@@ -451,6 +451,25 @@ typedef struct
 
 esp_err_t parse_smpub_response(const char *response_str, smpub_parsed_response_t *parsed_response, at_cmd_type_t cmd_type);
 
+// --------------------- SMSTATE -------------------------//
+// ----------------------------------------------------//
+
+typedef enum
+{
+    SMSTATE_STATUS_DISCONNECTED = 0,
+    SMSTATE_STATUS_CONNECTED = 1,
+    SMSTATE_STATUS_CONNECTED_WITH_SESSION = 2,
+    SMSTATE_STATUS_MAX = 3
+} smstate_status_t;
+
+typedef struct
+{
+    smstate_status_t status;
+} smstate_parsed_response_t;
+
+esp_err_t parse_smstate_response(const char *response_str, smstate_parsed_response_t *parsed_response, at_cmd_type_t cmd_type);
+const char *smstate_status_to_str(smstate_status_t status);
+
 // --------------------- CEREG -------------------------//
 // -----------------------------------------------------//
 // typedef enum

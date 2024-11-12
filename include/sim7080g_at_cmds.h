@@ -202,17 +202,6 @@ extern const at_cmd_t AT_SMCONF;
 //  Connect to MQTT broker
 extern const at_cmd_t AT_SMCONN;
 
-// /// @brief Subscribe Packet - Subscribe to an MQTT topic
-// /// @details This command is used to subscribe to a specified MQTT topic.
-// /// @param topic The topic to subscribe to (max length returned by test command)
-// /// @param qos Quality of Service level (0: At most once, 1: At least once, 2: Exactly once)
-// /// @return On success:
-// ///   - OK
-// /// @return On failure:
-// ///   - ERROR
-// /// @note The test command returns the supported ranges for each parameter
-// extern const at_cmd_t AT_SMSUB;
-
 // /// @brief Send Packet - Publish an MQTT message
 // /// @details This command is used to publish a message to a specified MQTT topic.
 // /// @param topic The topic to publish to (max length returned by test command)
@@ -227,6 +216,30 @@ extern const at_cmd_t AT_SMCONN;
 // /// @note The test command returns the supported ranges for each parameter
 // Publish to MQTT broker
 extern const at_cmd_t AT_SMPUB;
+
+// /// @brief Inquire MQTT Connection Status - Check the current MQTT connection state
+// /// @details This command is used to check the current status of the MQTT connection.
+// /// @return On success:
+// ///   - +SMSTATE: <status>
+// ///   - OK
+// /// @note Status values:
+// ///   - 0: MQTT disconnected
+// ///   - 1: MQTT connected
+// ///   - 2: MQTT connected with Session Present flag set
+// /// @note The test command returns the list of supported status values
+// Check MQTT connected status
+extern const at_cmd_t AT_SMSTATE;
+
+// /// @brief Subscribe Packet - Subscribe to an MQTT topic
+// /// @details This command is used to subscribe to a specified MQTT topic.
+// /// @param topic The topic to subscribe to (max length returned by test command)
+// /// @param qos Quality of Service level (0: At most once, 1: At least once, 2: Exactly once)
+// /// @return On success:
+// ///   - OK
+// /// @return On failure:
+// ///   - ERROR
+// /// @note The test command returns the supported ranges for each parameter
+// extern const at_cmd_t AT_SMSUB;
 
 // /// @brief Unsubscribe Packet - Unsubscribe from an MQTT topic
 // /// @details This command is used to unsubscribe from a previously subscribed MQTT topic.
@@ -248,18 +261,6 @@ extern const at_cmd_t AT_SMPUB;
 // /// @note No read or test commands are available for this command
 // /// @note The disconnection is performed immediately upon execution of this command
 // extern const at_cmd_t AT_SMDISC;
-
-// /// @brief Inquire MQTT Connection Status - Check the current MQTT connection state
-// /// @details This command is used to check the current status of the MQTT connection.
-// /// @return On success:
-// ///   - +SMSTATE: <status>
-// ///   - OK
-// /// @note Status values:
-// ///   - 0: MQTT disconnected
-// ///   - 1: MQTT connected
-// ///   - 2: MQTT connected with Session Present flag set
-// /// @note The test command returns the list of supported status values
-// extern const at_cmd_t AT_SMSTATE;
 
 // /// @brief EPS Network Registration - Enable or disable EPS network registration status
 // extern const at_cmd_t AT_CEREG;

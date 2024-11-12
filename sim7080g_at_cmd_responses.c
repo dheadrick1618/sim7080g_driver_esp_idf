@@ -1394,6 +1394,74 @@ const char *smpub_status_to_str(smpub_status_t status)
     return strings[status];
 }
 
+// -------------------- SMSTATE -------------------------//
+// ----------------------------------------------------//
+
+esp_err_t parse_smstate_response(const char *response_str,
+                                 smstate_parsed_response_t *parsed_response,
+                                 at_cmd_type_t cmd_type)
+{
+    if ((response_str == NULL) || (parsed_response == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // For READ command, parse the state
+    if (cmd_type == AT_CMD_TYPE_READ)
+    {
+        // Find the +SMSTATE: response
+        const char *state_start = strstr(response_str, "+SMSTATE:");
+        if (state_start == NULL)
+        {
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+
+        // Skip past "+SMSTATE: "
+        state_start += 9;
+
+        int status = 0;
+        if (sscanf(state_start, "%d", &status) != 1)
+        {
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+
+        // Validate status value
+        if (status < 0 || status >= SMSTATE_STATUS_MAX)
+        {
+            return ESP_ERR_INVALID_STATE;
+        }
+
+        parsed_response->status = (smstate_status_t)status;
+        return ESP_OK;
+    }
+
+    // For TEST command
+    if (cmd_type == AT_CMD_TYPE_TEST)
+    {
+        if (strstr(response_str, "+SMSTATE: (0-2)") != NULL)
+        {
+            return ESP_OK;
+        }
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    return ESP_ERR_INVALID_RESPONSE;
+}
+
+const char *smstate_status_to_str(smstate_status_t status)
+{
+    static const char *const strings[] = {
+        "MQTT Disconnected",
+        "MQTT Connected",
+        "MQTT Connected with Session Present"};
+
+    if (status >= SMSTATE_STATUS_MAX)
+    {
+        return "Invalid Status";
+    }
+    return strings[status];
+}
+
 // --------------------- CEREG -------------------------//
 // -----------------------------------------------------//
 // const char *cereg_mode_to_str(cereg_mode_t mode)

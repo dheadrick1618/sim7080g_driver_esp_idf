@@ -160,6 +160,16 @@ const at_cmd_t AT_SMPUB = {
     },
     .execute = {0}};
 
+const at_cmd_t AT_SMSTATE = {
+    .name = "AT+SMSTATE",
+    .description = "MQTT State Check - Query current MQTT connection status",
+    .test = {
+        TEST_CMD("AT+SMSTATE"),
+        "+SMSTATE: (0-2)"},
+    .read = {READ_CMD("AT+SMSTATE"), "+SMSTATE: %d"},
+    .write = {0},
+    .execute = {0}};
+
 // const at_cmd_t AT_CEREG = {
 //     .name = "AT+CEREG",
 //     .description = "EPS Network Registration Status - Controls and reports network registration and location information",
@@ -201,14 +211,6 @@ const at_cmd_t AT_SMPUB = {
 //     .read = {0},
 //     .write = {0},
 //     .execute = {EXECUTE_CMD("AT+SMDISC"), "OK"}};
-
-// const at_cmd_t AT_SMSTATE = {
-//     .name = "AT+SMSTATE",
-//     .description = "MQTT State Check - Query current MQTT connection status",
-//     .test = {TEST_CMD("AT+SMSTATE"), "+SMSTATE: (0-2)"},
-//     .read = {READ_CMD("AT+SMSTATE"), "+SMSTATE: %d"},
-//     .write = {0},
-//     .execute = {0}};
 
 // TODO - Implement this if its found relevant later to check  transport layer connection
 //  const at_cmd_t AT_CASTATE = {

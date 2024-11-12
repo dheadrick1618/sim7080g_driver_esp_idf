@@ -79,6 +79,15 @@ static esp_err_t smconn_parser_wrapper(const char *response, void *parsed_respon
     return parse_smconn_response(response, (smconn_parsed_response_t *)parsed_response, cmd_type);
 }
 
+static esp_err_t smstate_parser_wrapper(const char *response,
+                                        void *parsed_response,
+                                        at_cmd_type_t cmd_type)
+{
+    return parse_smstate_response(response,
+                                  (smstate_parsed_response_t *)parsed_response,
+                                  cmd_type);
+}
+
 // --------------------------------------- FXNS to use SIM7080G AT Commands --------------------------------------- //
 // ----------------------------- (main driver uses these fxns inside its user exposed fxns) ------------------- //
 
@@ -938,7 +947,7 @@ esp_err_t sim7080g_mqtt_publish(const sim7080g_handle_t *handle,
 
     // Send command and wait for prompt
     err = send_receive_publish_cmd(handle, at_cmd, response,
-                                   sizeof(response), 5000U);
+                                   sizeof(response), 15000U);
     if (err != ESP_OK)
     {
         ESP_LOGE(TAG, "Failed to receive prompt");
@@ -956,22 +965,13 @@ esp_err_t sim7080g_mqtt_publish(const sim7080g_handle_t *handle,
         return ESP_ERR_INVALID_SIZE;
     }
 
-    // Send the message content
-    err = uart_write_bytes(handle->uart_config.port_num,
-                           content_with_crlf, strlen(content_with_crlf));
-    if (err < 0)
+    // send the ACTUAL MESSAGE DATA CONTENTs
+    err = send_receive_at_cmd(handle, content_with_crlf, response,
+                              sizeof(response), 5000U, AT_CMD_TYPE_WRITE);
+
+    if (err != ESP_OK)
     {
         ESP_LOGE(TAG, "Failed to send message content");
-        return ESP_FAIL;
-    }
-
-    // Wait for final OK
-    memset(response, 0, sizeof(response));
-    err = read_uart_response(handle, response, sizeof(response), 5000U,
-                             AT_CMD_TYPE_WRITE);
-    if (err != ESP_OK || strstr(response, "OK") == NULL)
-    {
-        ESP_LOGE(TAG, "Failed to get successful response after sending content");
         return ESP_FAIL;
     }
 
@@ -979,4 +979,47 @@ esp_err_t sim7080g_mqtt_publish(const sim7080g_handle_t *handle,
     return ESP_OK;
 }
 
+// Check MQTT broker connection status
+esp_err_t sim7080g_mqtt_check_connection_status(const sim7080g_handle_t *handle,
+                                                smstate_status_t *status_out)
+{
+    if ((handle == NULL) || (status_out == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    static const char *TAG = "sim7080g_mqtt_check_connection";
+
+    smstate_parsed_response_t parsed_response = {0};
+
+    // Configure handler for status check
+    at_cmd_handler_config_t handler_config = {
+        .parser = smstate_parser_wrapper,
+        .timeout_ms = 5000U,    // 5 second timeout should be sufficient
+        .retry_delay_ms = 1000U // 1 second between retries
+    };
+
+    esp_err_t err = send_at_cmd_with_parser(
+        handle,
+        &AT_SMSTATE,
+        AT_CMD_TYPE_READ,
+        NULL,
+        &parsed_response,
+        &handler_config);
+
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to read MQTT state");
+        return err;
+    }
+
+    *status_out = parsed_response.status;
+    ESP_LOGI(TAG, "MQTT Connection Status: %s",
+             smstate_status_to_str(parsed_response.status));
+
+    return ESP_OK;
+}
+
 // Subscribe to MQTT broker
+
+// Disconnect from MQTT broker

@@ -73,14 +73,17 @@ esp_err_t sim7080g_set_mqtt_param(const sim7080g_handle_t *handle,
 // Connect to MQTT broker
 esp_err_t sim7080g_mqtt_connect_to_broker(const sim7080g_handle_t *handle);
 
-// Disconnect from MQTT broker
-
 // Publish to MQTT broker
 esp_err_t sim7080g_mqtt_publish(const sim7080g_handle_t *handle,
                                 const char *topic,
                                 const char *message,
                                 uint8_t qos,
                                 bool retain);
-// Subscribe to MQTT broker
 
-// --- Now for the static fxns like 'send at command' and 'parse response' etc that are used by the above commands --- //
+// Check MQTT connections status (SMSTATE)
+esp_err_t sim7080g_mqtt_check_connection_status(const sim7080g_handle_t *handle,
+                                                smstate_status_t *status_out);
+
+// Disconnect from MQTT broker
+
+// Subscribe to MQTT broker
