@@ -63,6 +63,72 @@ const at_cmd_t AT_CMEE = {
     .write = {WRITE_CMD("AT+CMEE"), "OK"},
     .execute = {0}};
 
+const at_cmd_t AT_CGDCONT = {
+    .name = "AT+CGDCONT",
+    .description = "Define PDP Context - Set PDP context parameters including Context ID, Type, and APN",
+    .test = {
+        TEST_CMD("AT+CGDCONT"),
+        "+CGDCONT: (1-15),\"IP\",,,(0-2),(0-4),(0)"},
+    .read = {READ_CMD("AT+CGDCONT"), "+CGDCONT: %d,\"%[^\"]\",\"%[^\"]\",%*[^,],%*[^,],%*[^,],%*[^\r\n]"},
+    .write = {WRITE_CMD("AT+CGDCONT"), "OK"},
+    .execute = {0}};
+
+const at_cmd_t AT_CGATT = {
+    .name = "AT+CGATT",
+    .description = "GPRS Service Attach/Detach - Control device attachment to GPRS service",
+    .test = {
+        TEST_CMD("AT+CGATT"),
+        "+CGATT: (0,1)"},
+    .read = {READ_CMD("AT+CGATT"), "+CGATT: %d"},
+    .write = {WRITE_CMD("AT+CGATT"), "OK"},
+    .execute = {0}};
+
+const at_cmd_t AT_COPS = {
+    .name = "AT+COPS",
+    .description = "Operator Selection - Get current network operator information",
+    .test = {
+        TEST_CMD("AT+COPS"),
+        "+COPS: (list of supported<stat>,long alphanumeric<oper>)"},
+    .read = {READ_CMD("AT+COPS"), "+COPS: %d,%d,\"%[^\"]\"%d"},
+    .write = {WRITE_CMD("AT+COPS"), "OK"},
+    .execute = {0}};
+
+const at_cmd_t AT_CGNAPN = {
+    .name = "AT+CGNAPN",
+    .description = "Get Network APN - Retrieve network-provided APN in CAT-M or NB-IOT mode",
+    .test = {
+        TEST_CMD("AT+CGNAPN"),
+        "+CGNAPN: (0,1),120"},
+    .read = {0},  // No read command
+    .write = {0}, // No write command
+    .execute = {
+        EXECUTE_CMD("AT+CGNAPN"),
+        "+CGNAPN: %d,\"%[^\"]\"" // Expecting status and possibly an APN string
+    }};
+
+const at_cmd_t AT_CNCFG = {
+    .name = "AT+CNCFG",
+    .description = "PDP Configure - Configure PDP context parameters",
+    .test = {
+        TEST_CMD("AT+CNCFG"),
+        "+CNCFG: (0-3),(0-4),150,127,127,(0-3)"},
+    .read = {READ_CMD("AT+CNCFG"), "+CNCFG: %d,%d,\"%[^\"]\",\"%[^\"]\",\"%[^\"]\",%d"},
+    .write = {WRITE_CMD("AT+CNCFG"), "OK"},
+    .execute = {0}};
+
+const at_cmd_t AT_CNACT = {
+    .name = "AT+CNACT",
+    .description = "APP Network Active - Control PDP context activation",
+    .test = {
+        TEST_CMD("AT+CNACT"),
+        "+CNACT: (0-3),(0-2)"},
+    .read = {
+        READ_CMD("AT+CNACT"),
+        "+CNACT: %d,%d,\"%[^\"]\"" // Format for each context
+    },
+    .write = {WRITE_CMD("AT+CNACT"), "OK"},
+    .execute = {0}};
+
 // const at_cmd_t AT_CEREG = {
 //     .name = "AT+CEREG",
 //     .description = "EPS Network Registration Status - Controls and reports network registration and location information",
@@ -71,46 +137,6 @@ const at_cmd_t AT_CMEE = {
 //         "+CEREG: (0-2,4)"},
 //     .read = {READ_CMD("AT+CEREG"), "+CEREG: %d,%d[,[\"%[^\"]\"],[\"%[^\"]\"],[\"%[^\"]\"],%d][,,[,[%[^]],[%[^]]]]]"},
 //     .write = {WRITE_CMD("AT+CEREG"), "OK"},
-//     .execute = {0}};
-
-// const at_cmd_t AT_CGATT = {
-//     .name = "AT+CGATT",
-//     .description = "GPRS Service Attach/Detach - Control device attachment to GPRS service",
-//     .test = {TEST_CMD("AT+CGATT"), "OK"},
-//     .read = {READ_CMD("AT+CGATT"), "+CGATT: %d"},
-//     .write = {WRITE_CMD("AT+CGATT"), "OK"},
-//     .execute = {0}};
-
-// const at_cmd_t AT_COPS = {
-//     .name = "AT+COPS",
-//     .description = "Operator Selection - Select and register GSM/UMTS/LTE network operator",
-//     .test = {TEST_CMD("AT+COPS"), "+COPS: (LIST)"},
-//     .read = {READ_CMD("AT+COPS"), "+COPS: %d,%d,\"%[^\"]\",%d"},
-//     .write = {WRITE_CMD("AT+COPS"), "OK"},
-//     .execute = {0}};
-
-// const at_cmd_t AT_CGNAPN = {
-//     .name = "AT+CGNAPN",
-//     .description = "Get Network APN - Retrieve Access Point Name from network in CAT-M or NB-IOT mode",
-//     .test = {0},
-//     .read = {0},
-//     .write = {0},
-//     .execute = {EXECUTE_CMD("AT+CGNAPN"), "+CGNAPN: %d,\"%[^\"]\""}};
-
-// const at_cmd_t AT_CNCFG = {
-//     .name = "AT+CNCFG",
-//     .description = "PDP Context Configuration - Set up PDP (Packet Data Protocol) context parameters",
-//     .test = {TEST_CMD("AT+CNCFG"), "OK"},
-//     .read = {READ_CMD("AT+CNCFG"), "+CNCFG: %d,%d,\"%[^\"]\""},
-//     .write = {WRITE_CMD("AT+CNCFG"), "OK"},
-//     .execute = {0}};
-
-// const at_cmd_t AT_CNACT = {
-//     .name = "AT+CNACT",
-//     .description = "App Network Activation - Activate or deactivate PDP context for network connection",
-//     .test = {TEST_CMD("AT+CNACT"), "OK"},
-//     .read = {READ_CMD("AT+CNACT"), "+CNACT: %d,%d,\"%[^\"]\""},
-//     .write = {WRITE_CMD("AT+CNACT"), "OK"},
 //     .execute = {0}};
 
 // const at_cmd_t AT_SMCONF = {

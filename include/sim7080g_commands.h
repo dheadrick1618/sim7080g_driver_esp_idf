@@ -31,15 +31,37 @@ esp_err_t sim7080g_set_echo_mode(const sim7080g_handle_t *handle, ate_mode_t mod
 // Enable verbose error reporting (CMEE)
 esp_err_t sim7080g_set_error_report_mode(const sim7080g_handle_t *handle, cmee_mode_t mode);
 
+// Set PDP context ID (1), PDP type (IP), and APN [Define PDP context] (CGDCONT)
+esp_err_t sim7080g_define_pdp_context(const sim7080g_handle_t *handle,
+                                      uint8_t cid,
+                                      cgdcont_pdp_type_t pdp_type,
+                                      const char *apn);
+
 // Get GPRS attached status
+esp_err_t sim7080g_get_gprs_attachment(const sim7080g_handle_t *handle, cgatt_state_t *state_out);
+
+// Set GPRS attached status
+esp_err_t sim7080g_set_gprs_attachment(const sim7080g_handle_t *handle, cgatt_state_t state);
 
 // Get operator info
+esp_err_t sim7080g_get_operator_info(const sim7080g_handle_t *handle, cops_parsed_response_t *operator_info);
 
 // Get APN
+esp_err_t sim7080g_get_network_apn(const sim7080g_handle_t *handle,
+                                   cgnapn_parsed_response_t *apn_info);
 // Set APN
 
+// Set APN using CNCFG
+esp_err_t sim7080g_set_pdp_config(const sim7080g_handle_t *handle, const cncfg_context_config_t *config);
+
+// Get APN using CNCFG
+esp_err_t sim7080g_get_pdp_config(const sim7080g_handle_t *handle, cncfg_parsed_response_t *config_info);
+
 // Get PDP context status (CNACT)
+esp_err_t sim7080g_get_network_status(const sim7080g_handle_t *handle, cnact_parsed_response_t *status_info);
+
 // Set (activate OR deactivate) PDP context (CNACT)
+esp_err_t sim7080g_activate_network(const sim7080g_handle_t *handle, uint8_t pdp_idx, cnact_action_t action);
 
 // Get MQTT configuration parameters (SMCONF)
 // Set MQTT configuration parameters (SMCONF)

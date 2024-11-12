@@ -3,6 +3,7 @@
 #include "sim7080g_types.h"
 
 /// @brief Used to check if device can be communicated with via AT commands (- does it respond at all)
+/// @note: Sometimes this is unreliable - seems best to use CPIN to check for now....
 extern const at_cmd_t AT_TEST;
 
 extern const at_cmd_t AT_CPIN;
@@ -40,8 +41,17 @@ extern const at_cmd_t AT_CSQ;
 // Set command echo mode
 extern const at_cmd_t AT_ATE;
 
+// /// @brief Extended Error Reporting - Enable or disable extended error reporting
+// /// @details This command is used to enable or disable extended error reporting.
+// /// @note Status values:
+// ///   - 0: Disable extended error reporting - just show 'ERROR'
+// ///   - 1: Enable extended error reporting - show 'ERROR' followed by '+CME ERROR: <error code num>'
+// ///   - 2: Enable extended error reporting - show 'ERROR' followed by '+CMS ERROR: <err string>'
 /// @brief Set Command Echo Mode - Controls whether device echoes back commands
 extern const at_cmd_t AT_CMEE;
+
+/// @brief Define PDP Context - Set PDP context ID, PDP type, and APN (and others but we dont care for now)
+extern const at_cmd_t AT_CGDCONT;
 
 // /// @brief Attach or Detach from GPRS Service
 // /// @details This command is used to attach the MT to, or detach the MT from, the GPRS service.
@@ -55,7 +65,8 @@ extern const at_cmd_t AT_CMEE;
 // /// @note The read command returns the current GPRS service state.
 // /// @note Maximum response time: 75 seconds
 // /// @note This setting is not saved (NO_SAVE)
-// extern const at_cmd_t AT_CGATT;
+// Attach for Detach from GPRS Service (GPRS attach status)
+extern const at_cmd_t AT_CGATT;
 
 // /// @brief Operator Selection - Select a network operator
 // /// @details This command forces an attempt to select and register the GSM/UMTS/LTE network operator.
@@ -84,7 +95,7 @@ extern const at_cmd_t AT_CMEE;
 // /// @note The read command returns the current mode and the currently selected operator.
 // /// @note Maximum response time: Test command: 45 seconds, Write command: 120 seconds
 // /// @note This setting is automatically saved (AUTO_SAVE)
-// extern const at_cmd_t AT_COPS;
+extern const at_cmd_t AT_COPS;
 
 // /// @brief Get Network APN in CAT-M or NB-IOT
 // /// @details This command retrieves the Access Point Name (APN) provided by the network when the device
@@ -101,7 +112,8 @@ extern const at_cmd_t AT_CMEE;
 // ///                    Maximum length is defined by the <length> parameter in the test command response.
 // /// @note In CAT-M or NB-IOT, <Network_APN> is valid if the core network responds with an attach accept
 // /// message that includes the APN parameter after the UE sends an attach request message.
-// extern const at_cmd_t AT_CGNAPN;
+// ONLY gets the network APN for CAT-M or NB-IOT networks (use CGDCONT for setting APN and other PDP context params)
+extern const at_cmd_t AT_CGNAPN;
 
 // /// @brief PDP Configure - Configure PDP context parameters
 // /// @details This command is used to configure parameters for a specified PDP context.
@@ -129,7 +141,8 @@ extern const at_cmd_t AT_CMEE;
 // /// @note The test command returns the supported ranges for each parameter:
 // ///   - +CNCFG: (range of supported <pdpidx>s),(range of supported <ip_type>s),<len_APN>,<len_username>,<len_password>,(range of supported <authentication>s)
 // /// @note This setting is not saved (implied by the absence of a saving mode in the documentation)
-// extern const at_cmd_t AT_CNCFG;
+// PDP configure (For IP application) - Set PDP context parameters (PDP context ID, PDP type, APN, username, password, authentication)
+extern const at_cmd_t AT_CNCFG;
 
 // /// @brief APP Network Active - Activate or deactivate PDP context
 // /// @details This command is used to activate or deactivate a specified PDP context.
@@ -151,7 +164,8 @@ extern const at_cmd_t AT_CMEE;
 // /// @note "+APP PDP: <pdpidx>,ACTIVE" will be reported when the network is activated
 // /// @note "+APP PDP: <pdpidx>,DEACTIVE" will be reported when the network is deactivated
 // /// @note This setting is not saved (NO_SAVE)
-// extern const at_cmd_t AT_CNACT;
+// App network activation - Activate or deactivate PDP context for network connection (and check activation status)
+extern const at_cmd_t AT_CNACT;
 
 // /// @brief Set MQTT Parameter - Configure various MQTT settings
 // /// @details This command is used to set various MQTT parameters such as client ID, server URL, keepalive time, etc.
@@ -242,14 +256,6 @@ extern const at_cmd_t AT_CMEE;
 // ///   - 2: MQTT connected with Session Present flag set
 // /// @note The test command returns the list of supported status values
 // extern const at_cmd_t AT_SMSTATE;
-
-// /// @brief Extended Error Reporting - Enable or disable extended error reporting
-// /// @details This command is used to enable or disable extended error reporting.
-// /// @note Status values:
-// ///   - 0: Disable extended error reporting - just show 'ERROR'
-// ///   - 1: Enable extended error reporting - show 'ERROR' followed by '+CME ERROR: <error code num>'
-// ///   - 2: Enable extended error reporting - show 'ERROR' followed by '+CMS ERROR: <err string>'
-// extern const at_cmd_t AT_CMEE;
 
 // /// @brief EPS Network Registration - Enable or disable EPS network registration status
 // extern const at_cmd_t AT_CEREG;

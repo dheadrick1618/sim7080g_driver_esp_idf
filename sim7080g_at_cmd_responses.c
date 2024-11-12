@@ -445,6 +445,671 @@ const char *cmee_mode_to_str(cmee_mode_t mode)
     return strings[mode];
 }
 
+// --------------------- CGDCONT -------------------------//
+// ----------------------------------------------------//
+
+esp_err_t parse_cgdcont_response(const char *response_str, cgdcont_parsed_response_t *parsed_response, at_cmd_type_t cmd_type)
+{
+    if ((response_str == NULL) || (parsed_response == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // For WRITE command, just verify we got OK
+    if (cmd_type == AT_CMD_TYPE_WRITE)
+    {
+        if (strstr(response_str, "OK") != NULL)
+        {
+            return ESP_OK;
+        }
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // For READ command, parse the current PDP context configurations
+    if (cmd_type == AT_CMD_TYPE_READ)
+    {
+        const char *pos = response_str;
+        parsed_response->num_contexts = 0;
+
+        while ((pos = strstr(pos, "+CGDCONT: ")) != NULL)
+        {
+            if (parsed_response->num_contexts >= CGDCONT_MAX_CID)
+            {
+                return ESP_ERR_INVALID_SIZE;
+            }
+
+            cgdcont_config_t *context = &parsed_response->contexts[parsed_response->num_contexts];
+            char pdp_type_str[32] = {0};
+
+            // Parse the context ID, PDP type, and APN
+            int matched = sscanf(pos, "+CGDCONT: %hhu,\"%31[^\"]\",\"%99[^\"]\"",
+                                 &context->cid,
+                                 pdp_type_str,
+                                 context->apn);
+
+            if (matched < 2) // At minimum need CID and PDP type
+            {
+                return ESP_ERR_INVALID_RESPONSE;
+            }
+
+            // Validate CID
+            if (context->cid < CGDCONT_MIN_CID || context->cid > CGDCONT_MAX_CID)
+            {
+                return ESP_ERR_INVALID_ARG;
+            }
+
+            // Convert PDP type string to enum
+            context->pdp_type = cgdcont_str_to_pdp_type(pdp_type_str);
+            if (context->pdp_type >= CGDCONT_PDP_TYPE_MAX)
+            {
+                return ESP_ERR_INVALID_ARG;
+            }
+
+            parsed_response->num_contexts++;
+            pos += 9; // Move past "+CGDCONT: "
+        }
+
+        return ESP_OK;
+    }
+
+    return ESP_ERR_INVALID_RESPONSE;
+}
+
+const char *cgdcont_pdp_type_to_str(cgdcont_pdp_type_t pdp_type)
+{
+    static const char *const strings[] = {
+        "IP",
+        "PPP",
+        "IPV6",
+        "IPV4V6",
+        "Non-IP"};
+
+    if (pdp_type >= CGDCONT_PDP_TYPE_MAX)
+    {
+        return "Invalid PDP Type";
+    }
+    return strings[pdp_type];
+}
+
+cgdcont_pdp_type_t cgdcont_str_to_pdp_type(const char *pdp_type_str)
+{
+    if (!pdp_type_str)
+    {
+        return CGDCONT_PDP_TYPE_MAX;
+    }
+
+    struct
+    {
+        const char *str;
+        cgdcont_pdp_type_t type;
+    } type_map[] = {
+        {"IP", CGDCONT_PDP_TYPE_IP},
+        {"PPP", CGDCONT_PDP_TYPE_PPP},
+        {"IPV6", CGDCONT_PDP_TYPE_IPV6},
+        {"IPV4V6", CGDCONT_PDP_TYPE_IPV4V6},
+        {"Non-IP", CGDCONT_PDP_TYPE_NONIP}};
+
+    for (size_t i = 0; i < sizeof(type_map) / sizeof(type_map[0]); i++)
+    {
+        if (strcmp(pdp_type_str, type_map[i].str) == 0)
+        {
+            return type_map[i].type;
+        }
+    }
+
+    return CGDCONT_PDP_TYPE_MAX;
+}
+
+// --------------------- CGATT -------------------------//
+// ----------------------------------------------------//
+
+esp_err_t parse_cgatt_response(const char *response_str, cgatt_parsed_response_t *parsed_response, at_cmd_type_t cmd_type)
+{
+    if ((response_str == NULL) || (parsed_response == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // For WRITE command, just verify we got OK
+    if (cmd_type == AT_CMD_TYPE_WRITE)
+    {
+        if (strstr(response_str, "OK") != NULL)
+        {
+            return ESP_OK;
+        }
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // For READ command, parse the GPRS attachment state
+    if (cmd_type == AT_CMD_TYPE_READ)
+    {
+        // Find the +CGATT: response in the string
+        const char *cgatt_start = strstr(response_str, "+CGATT:");
+        if (cgatt_start == NULL)
+        {
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+
+        // Skip past "+CGATT: "
+        cgatt_start += 7;
+
+        int state = 0;
+        if (sscanf(cgatt_start, "%d", &state) != 1)
+        {
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+
+        // Validate state value
+        if ((state != CGATT_STATE_DETACHED) && (state != CGATT_STATE_ATTACHED))
+        {
+            return ESP_ERR_INVALID_STATE;
+        }
+
+        parsed_response->state = (cgatt_state_t)state;
+        return ESP_OK;
+    }
+
+    return ESP_ERR_INVALID_RESPONSE;
+}
+
+const char *cgatt_state_to_str(cgatt_state_t state)
+{
+    static const char *const strings[] = {
+        "Detached from GPRS service",
+        "Attached to GPRS service"};
+
+    if (state >= CGATT_STATE_MAX)
+    {
+        return "Invalid GPRS attachment state";
+    }
+    return strings[state];
+}
+
+// --------------------- COPS -------------------------//
+// ----------------------------------------------------//
+esp_err_t parse_cops_response(const char *response_str, cops_parsed_response_t *parsed_response, at_cmd_type_t cmd_type)
+{
+    if ((response_str == NULL) || (parsed_response == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // For READ command, parse current operator info
+    if (cmd_type == AT_CMD_TYPE_READ)
+    {
+        // Find the +COPS: response in the string
+        const char *cops_start = strstr(response_str, "+COPS:");
+        if (cops_start == NULL)
+        {
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+
+        // Skip past "+COPS: "
+        cops_start += 7;
+
+        // Initialize the parsed_response structure
+        memset(parsed_response, 0, sizeof(cops_parsed_response_t));
+
+        int mode = 0;
+        int format = 0;
+        int act = 0;
+
+        // Try to parse with operator name and access technology
+        int matched = sscanf(cops_start, "%d,%d,\"%31[^\"]\",%d",
+                             &mode, &format,
+                             parsed_response->operator_name,
+                             &act);
+
+        if (matched < 1) // At minimum need mode
+        {
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+
+        // Validate mode
+        if ((mode < 0) || (mode >= (int)COPS_MODE_MAX))
+        {
+            return ESP_ERR_INVALID_STATE;
+        }
+        parsed_response->mode = (cops_mode_t)mode;
+
+        // If we got format and operator name
+        if (matched >= 2)
+        {
+            if ((format < 0) || (format >= (int)COPS_FORMAT_MAX))
+            {
+                return ESP_ERR_INVALID_STATE;
+            }
+            parsed_response->format = (cops_format_t)format;
+        }
+
+        // If we got access technology
+        if (matched == 4)
+        {
+            if ((act < 0) || (act >= (int)COPS_ACT_MAX))
+            {
+                return ESP_ERR_INVALID_STATE;
+            }
+            parsed_response->access_tech = (cops_access_tech_t)act;
+        }
+
+        return ESP_OK;
+    }
+
+    return ESP_ERR_INVALID_RESPONSE;
+}
+
+const char *cops_mode_to_str(cops_mode_t mode)
+{
+    static const char *const strings[] = {
+        "Automatic",
+        "Manual",
+        "Deregister",
+        "Set Format Only",
+        "Manual/Automatic"};
+
+    if (mode >= COPS_MODE_MAX)
+    {
+        return "Invalid Mode";
+    }
+    return strings[mode];
+}
+
+const char *cops_format_to_str(cops_format_t format)
+{
+    static const char *const strings[] = {
+        "Long Alphanumeric",
+        "Short Alphanumeric",
+        "Numeric"};
+
+    if (format >= COPS_FORMAT_MAX)
+    {
+        return "Invalid Format";
+    }
+    return strings[format];
+}
+
+const char *cops_access_tech_to_str(cops_access_tech_t tech)
+{
+    static const char *const strings[] = {
+        "GSM",
+        "GSM Compact",
+        "Unknown",
+        "GSM EGPRS",
+        "Unknown",
+        "Unknown",
+        "Unknown",
+        "LTE M1",
+        "Unknown",
+        "LTE NB"};
+
+    if (tech >= COPS_ACT_MAX)
+    {
+        return "Invalid Access Technology";
+    }
+    return strings[tech];
+}
+
+// --------------------- CGNAPN -------------------------//
+// -----------------------------------------------------//
+
+esp_err_t parse_cgnapn_response(const char *response_str, cgnapn_parsed_response_t *parsed_response, at_cmd_type_t cmd_type)
+{
+    if ((response_str == NULL) || (parsed_response == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Find the +CGNAPN: response in the string
+    const char *cgnapn_start = strstr(response_str, "+CGNAPN:");
+    if (cgnapn_start == NULL)
+    {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // Skip past "+CGNAPN: "
+    cgnapn_start += 9;
+
+    // Initialize response structure
+    memset(parsed_response, 0, sizeof(cgnapn_parsed_response_t));
+
+    int status = 0;
+
+    // Parse status and APN
+    // Note: Using sizeof-1 to ensure space for null terminator
+    int matched = sscanf(cgnapn_start, "%d,\"%[^\"]\"",
+                         &status,
+                         parsed_response->network_apn);
+
+    // We must at least get the status
+    if (matched < 1)
+    {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // Validate status
+    if ((status != CGNAPN_APN_NOT_PROVIDED) &&
+        (status != CGNAPN_APN_PROVIDED))
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    parsed_response->status = (cgnapn_status_t)status;
+
+    return ESP_OK;
+}
+
+const char *cgnapn_status_to_str(cgnapn_status_t status)
+{
+    static const char *const strings[] = {
+        "Network APN not provided",
+        "Network APN provided"};
+
+    if (status >= CGNAPN_STATUS_MAX)
+    {
+        return "Invalid Status";
+    }
+    return strings[status];
+}
+
+// --------------------- CNCFG -------------------------//
+// -----------------------------------------------------//
+esp_err_t parse_cncfg_response(const char *response_str, cncfg_parsed_response_t *parsed_response, at_cmd_type_t cmd_type)
+{
+    if ((response_str == NULL) || (parsed_response == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    const char *TAG = "parse_cncfg_response";
+
+    // For WRITE command, just verify we got OK
+    if (cmd_type == AT_CMD_TYPE_WRITE)
+    {
+        if (strstr(response_str, "OK") != NULL)
+        {
+            return ESP_OK;
+        }
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // For READ command, parse all context configurations
+    if (cmd_type == AT_CMD_TYPE_READ)
+    {
+        const char *search_pos = response_str;
+        parsed_response->num_contexts = 0;
+
+        while ((search_pos = strstr(search_pos, "+CNCFG:")) != NULL)
+        {
+            if (parsed_response->num_contexts >= CNCFG_MAX_CONTEXTS)
+            {
+                return ESP_ERR_INVALID_SIZE;
+            }
+
+            cncfg_context_config_t *context = &parsed_response->contexts[parsed_response->num_contexts];
+
+            // Initialize fields
+            memset(context, 0, sizeof(cncfg_context_config_t));
+
+            char tmp_apn[CNCFG_MAX_APN_LEN] = {0};
+            char tmp_username[CNCFG_MAX_USERNAME_LEN] = {0};
+            char tmp_password[CNCFG_MAX_PASSWORD_LEN] = {0};
+            int pdp_idx = 0;
+            int ip_type = 0;
+            int auth_type = 0;
+
+            // Move past "CNCFG: "
+            const char *line_start = search_pos + 7;
+
+            // Find the end of this line
+            const char *line_end = strstr(line_start, "\r\n");
+            if (line_end == NULL)
+            {
+                line_end = line_start + strlen(line_start);
+            }
+
+            // Use a temporary buffer for this line
+            char line_buffer[256] = {0};
+            size_t line_len = line_end - line_start;
+            if (line_len >= sizeof(line_buffer))
+            {
+                return ESP_ERR_INVALID_SIZE;
+            }
+            memcpy(line_buffer, line_start, line_len);
+
+            // ESP_LOGI(TAG, "Parsing line: %s", line_buffer);
+
+            // Parse the line using standard string operations
+            char *token = strtok(line_buffer, ",");
+            if (token == NULL)
+                return ESP_ERR_INVALID_RESPONSE;
+            pdp_idx = atoi(token);
+
+            token = strtok(NULL, ",");
+            if (token == NULL)
+                return ESP_ERR_INVALID_RESPONSE;
+            ip_type = atoi(token);
+
+            // Parse APN (handle empty string case)
+            token = strtok(NULL, ",");
+            if (token == NULL)
+                return ESP_ERR_INVALID_RESPONSE;
+            if (strlen(token) > 2)
+            { // More than just the quotes
+                sscanf(token, "\"%[^\"]\"", tmp_apn);
+            }
+
+            // Parse username
+            token = strtok(NULL, ",");
+            if (token == NULL)
+                return ESP_ERR_INVALID_RESPONSE;
+            if (strlen(token) > 2)
+            {
+                sscanf(token, "\"%[^\"]\"", tmp_username);
+            }
+
+            // Parse password
+            token = strtok(NULL, ",");
+            if (token == NULL)
+                return ESP_ERR_INVALID_RESPONSE;
+            if (strlen(token) > 2)
+            {
+                sscanf(token, "\"%[^\"]\"", tmp_password);
+            }
+
+            // Parse auth type
+            token = strtok(NULL, ",");
+            if (token == NULL)
+                return ESP_ERR_INVALID_RESPONSE;
+            auth_type = atoi(token);
+
+            // Validate fields
+            if ((pdp_idx < 0) || (pdp_idx >= CNCFG_MAX_CONTEXTS))
+            {
+                ESP_LOGE(TAG, "Invalid PDP index: %d", pdp_idx);
+                return ESP_ERR_INVALID_ARG;
+            }
+            context->pdp_idx = (uint8_t)pdp_idx;
+
+            if ((ip_type < 0) || (ip_type >= (int)CNCFG_IP_TYPE_MAX))
+            {
+                ESP_LOGE(TAG, "Invalid IP type: %d", ip_type);
+                return ESP_ERR_INVALID_ARG;
+            }
+            context->ip_type = (cncfg_ip_type_t)ip_type;
+
+            if ((auth_type < 0) || (auth_type >= (int)CNCFG_AUTH_MAX))
+            {
+                ESP_LOGE(TAG, "Invalid auth type: %d", auth_type);
+                return ESP_ERR_INVALID_ARG;
+            }
+            context->auth_type = (cncfg_auth_type_t)auth_type;
+
+            // Copy strings
+            strncpy(context->apn, tmp_apn, CNCFG_MAX_APN_LEN - 1);
+            strncpy(context->username, tmp_username, CNCFG_MAX_USERNAME_LEN - 1);
+            strncpy(context->password, tmp_password, CNCFG_MAX_PASSWORD_LEN - 1);
+
+            // ESP_LOGI(TAG, "Successfully parsed context %d: PDP=%d, IP=%d, APN='%s', Auth=%d",
+            //          parsed_response->num_contexts, context->pdp_idx, context->ip_type,
+            //          context->apn[0] ? context->apn : "<empty>", context->auth_type);
+
+            parsed_response->num_contexts++;
+            search_pos = line_end;
+        }
+
+        return (parsed_response->num_contexts > 0) ? ESP_OK : ESP_ERR_INVALID_RESPONSE;
+    }
+
+    return ESP_ERR_INVALID_RESPONSE;
+}
+const char *cncfg_ip_type_to_str(cncfg_ip_type_t ip_type)
+{
+    static const char *const strings[] = {
+        "Dual PDN Stack",
+        "IPv4",
+        "IPv6",
+        "Non-IP",
+        "Extended Non-IP"};
+
+    if (ip_type >= CNCFG_IP_TYPE_MAX)
+    {
+        return "Invalid IP Type";
+    }
+    return strings[ip_type];
+}
+
+const char *cncfg_auth_type_to_str(cncfg_auth_type_t auth_type)
+{
+    static const char *const strings[] = {
+        "None",
+        "PAP",
+        "CHAP",
+        "PAP or CHAP"};
+
+    if (auth_type >= CNCFG_AUTH_MAX)
+    {
+        return "Invalid Auth Type";
+    }
+    return strings[auth_type];
+}
+
+// --------------------- CNACT -------------------------//
+// ----------------------------------------------------//
+
+esp_err_t parse_cnact_response(const char *response_str, cnact_parsed_response_t *parsed_response, at_cmd_type_t cmd_type)
+{
+    if ((response_str == NULL) || (parsed_response == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    const char *TAG = "parse_cnact_response";
+
+    // For WRITE command, log what we received and be more lenient
+    if (cmd_type == AT_CMD_TYPE_WRITE)
+    {
+        // Log the raw response for debugging
+        ESP_LOGI(TAG, "CNACT Write Response: %s", response_str);
+
+        // Accept any non-error response for now
+        if (strlen(response_str) > 0 && strstr(response_str, "ERROR") == NULL)
+        {
+            ESP_LOGI(TAG, "CNACT command accepted - awaiting network activation");
+            return ESP_OK;
+        }
+
+        ESP_LOGE(TAG, "CNACT command rejected with response: %s", response_str);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // For READ command, parse all context statuses
+    if (cmd_type == AT_CMD_TYPE_READ)
+    {
+        const char *pos = response_str;
+        parsed_response->num_contexts = 0;
+
+        while ((pos = strstr(pos, "+CNACT:")) != NULL)
+        {
+            if (parsed_response->num_contexts >= CNACT_MAX_CONTEXTS)
+            {
+                return ESP_ERR_INVALID_SIZE;
+            }
+
+            cnact_context_info_t *context = &parsed_response->contexts[parsed_response->num_contexts];
+            int pdp_idx = 0;
+            int status = 0;
+
+            // Skip past "+CNACT: "
+            pos += 7;
+
+            // Parse context info
+            int matched = sscanf(pos, "%d,%d,\"%[^\"]\"",
+                                 &pdp_idx,
+                                 &status,
+                                 context->ip_address);
+
+            if (matched != 3) // Need all three fields
+            {
+                return ESP_ERR_INVALID_RESPONSE;
+            }
+
+            // Validate fields
+            if ((pdp_idx < 0) || (pdp_idx >= CNACT_MAX_CONTEXTS))
+            {
+                return ESP_ERR_INVALID_ARG;
+            }
+            context->pdp_idx = (uint8_t)pdp_idx;
+
+            if ((status < 0) || (status >= (int)CNACT_STATUS_MAX))
+            {
+                return ESP_ERR_INVALID_ARG;
+            }
+            context->status = (cnact_status_t)status;
+
+            parsed_response->num_contexts++;
+
+            // Move to next line
+            pos = strchr(pos, '\n');
+            if (pos == NULL)
+            {
+                break;
+            }
+        }
+
+        return ESP_OK;
+    }
+
+    return ESP_ERR_INVALID_RESPONSE;
+}
+
+const char *cnact_action_to_str(cnact_action_t action)
+{
+    static const char *const strings[] = {
+        "Deactivate",
+        "Activate",
+        "Auto Activate"};
+
+    if (action >= CNACT_ACTION_MAX)
+    {
+        return "Invalid Action";
+    }
+    return strings[action];
+}
+
+const char *cnact_status_to_str(cnact_status_t status)
+{
+    static const char *const strings[] = {
+        "Deactivated",
+        "Activated",
+        "In Operation"};
+
+    if (status >= CNACT_STATUS_MAX)
+    {
+        return "Invalid Status";
+    }
+    return strings[status];
+}
+
 // --------------------- CEREG -------------------------//
 // -----------------------------------------------------//
 // const char *cereg_mode_to_str(cereg_mode_t mode)

@@ -362,7 +362,7 @@ esp_err_t send_at_cmd_with_parser(const sim7080g_handle_t *sim7080g_handle,
         if (retry > 0U)
         {
             vTaskDelay(pdMS_TO_TICKS(handler_config->retry_delay_ms));
-            ESP_LOGI(TAG, "Retrying command (attempt %u/%u)", // Change to %u
+            ESP_LOGI(TAG, "Retrying command (attempt %u/%u)",
                      retry + 1U, AT_CMD_MAX_RETRIES);
         }
         else
