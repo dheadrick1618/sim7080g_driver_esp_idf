@@ -16,10 +16,13 @@ typedef struct
 } sim7080g_uart_config_t;
 
 // TODO - Check these values against  MQTT v3 protocol specs
-#define MQTT_BROKER_URL_MAX_CHARS 128
-#define MQTT_BROKER_USERNAME_MAX_CHARS 32
-#define MQTT_BROKER_CLIENT_ID_MAX_CHARS 32
-#define MQTT_BROKER_PASSWORD_MAX_CHARS 32
+#define MQTT_BROKER_URL_MAX_CHARS 128U
+#define MQTT_BROKER_USERNAME_MAX_CHARS 128U
+#define MQTT_BROKER_CLIENT_ID_MAX_CHARS 128U
+#define MQTT_BROKER_PASSWORD_MAX_CHARS 128U
+#define MQTT_PACKET_MAX_MESSAGE_CHARS 1024U // A message consists of the topic AND the data
+#define MQTT_PACKET_MAX_TOPIC_CHARS 128U    // Max topic length
+#define MQTT_PACKET_MAX_DATA_CHARS 896U     // Max data length
 
 /// @brief For config device with MQTT broker.
 /// @note Thinger refers to the client password as the 'device credentials'

@@ -1187,7 +1187,7 @@ esp_err_t parse_smconf_response(const char *response_str, smconf_parsed_response
                 break;
             }
 
-            ESP_LOGI(TAG, "Parsing line: %s", line);
+            // ESP_LOGI(TAG, "Parsing line: %s", line);
 
             // Parse parameter line
             if (sscanf(line, "%31[^:]: \"%[^\"]\"", param_name, param_value) == 2 ||
@@ -1289,7 +1289,7 @@ const char *smconf_param_to_str(smconf_param_t param)
         "KEEPTIME",
         "USERNAME",
         "PASSWORD",
-        "CleanSS",
+        "CLEANSS",
         "QOS",
         "TOPIC",
         "MESSAGE",
