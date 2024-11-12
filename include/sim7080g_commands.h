@@ -64,8 +64,12 @@ esp_err_t sim7080g_get_network_status(const sim7080g_handle_t *handle, cnact_par
 esp_err_t sim7080g_activate_network(const sim7080g_handle_t *handle, uint8_t pdp_idx, cnact_action_t action);
 
 // Get MQTT configuration parameters (SMCONF)
-// Set MQTT configuration parameters (SMCONF)
+esp_err_t sim7080g_get_mqtt_config(const sim7080g_handle_t *handle, smconf_config_t *config);
 
+// Set MQTT configuration parameters (SMCONF)
+esp_err_t sim7080g_set_mqtt_param(const sim7080g_handle_t *handle,
+                                  smconf_param_t param,
+                                  const char *value);
 // Connect to MQTT broker
 // Disconnect from MQTT broker
 

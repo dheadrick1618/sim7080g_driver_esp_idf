@@ -1110,6 +1110,214 @@ const char *cnact_status_to_str(cnact_status_t status)
     return strings[status];
 }
 
+// --------------------- SMCONF -------------------------//
+// ----------------------------------------------------//
+esp_err_t parse_smconf_response(const char *response_str, smconf_parsed_response_t *parsed_response, at_cmd_type_t cmd_type)
+{
+    if ((response_str == NULL) || (parsed_response == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+    const char *TAG = "parse_smconf_response";
+
+    // For WRITE command, just verify we got OK
+    if (cmd_type == AT_CMD_TYPE_WRITE)
+    {
+        if (strstr(response_str, "OK") != NULL)
+        {
+            return ESP_OK;
+        }
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // For READ command, parse all parameters
+    if (cmd_type == AT_CMD_TYPE_READ)
+    {
+        smconf_config_t *config = &parsed_response->config;
+        memset(config, 0, sizeof(smconf_config_t));
+
+        // Find start of configuration block
+        const char *conf_start = strstr(response_str, "+SMCONF:");
+        if (conf_start == NULL)
+        {
+            ESP_LOGE(TAG, "Could not find +SMCONF:");
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+
+        // Find first param after +SMCONF:
+        const char *line_start = strstr(conf_start, "\r\n");
+        if (line_start == NULL)
+        {
+            ESP_LOGE(TAG, "Could not find start of parameters");
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+        line_start += 2; // Skip \r\n
+
+        // Prepare for line-by-line parsing
+        char line[SMCONF_MESSAGE_MAX_LEN + 32] = {0};
+        char param_name[32] = {0};
+        char param_value[SMCONF_MESSAGE_MAX_LEN + 1] = {0};
+        const char *current_pos = line_start;
+
+        // Parse line by line until we hit "OK" or end of string
+        while (current_pos && *current_pos)
+        {
+            // Find end of current line
+            const char *line_end = strstr(current_pos, "\r\n");
+            if (line_end == NULL)
+            {
+                break;
+            }
+
+            // Verify line length
+            size_t line_len = line_end - current_pos;
+            if (line_len == 0 || line_len >= sizeof(line))
+            {
+                current_pos = line_end + 2;
+                continue;
+            }
+
+            // Copy line for parsing
+            memset(line, 0, sizeof(line));
+            strncpy(line, current_pos, line_len);
+
+            // Skip empty lines or OK
+            if (strcmp(line, "OK") == 0 || line[0] == '\0')
+            {
+                break;
+            }
+
+            ESP_LOGI(TAG, "Parsing line: %s", line);
+
+            // Parse parameter line
+            if (sscanf(line, "%31[^:]: \"%[^\"]\"", param_name, param_value) == 2 ||
+                sscanf(line, "%31[^:]: %[^\r\n]", param_name, param_value) == 2)
+            {
+                if (strcmp(param_name, "CLIENTID") == 0)
+                {
+                    strncpy(config->client_id, param_value, SMCONF_CLIENTID_MAX_LEN - 1);
+                }
+                else if (strcmp(param_name, "URL") == 0)
+                {
+                    char *port_str = strchr(param_value, ',');
+                    if (port_str != NULL)
+                    {
+                        *port_str = '\0';
+                        port_str++;
+                        config->port = (uint16_t)atoi(port_str);
+                    }
+                    strncpy(config->url, param_value, SMCONF_URL_MAX_LEN - 1);
+                }
+                else if (strcmp(param_name, "KEEPTIME") == 0)
+                {
+                    config->keeptime = (uint16_t)atoi(param_value);
+                }
+                else if (strcmp(param_name, "USERNAME") == 0)
+                {
+                    strncpy(config->username, param_value, SMCONF_USERNAME_MAX_LEN - 1);
+                }
+                else if (strcmp(param_name, "PASSWORD") == 0)
+                {
+                    strncpy(config->password, param_value, SMCONF_PASSWORD_MAX_LEN - 1);
+                }
+                else if (strcmp(param_name, "CLEANSS") == 0)
+                {
+                    config->clean_session = (atoi(param_value) == 1);
+                }
+                else if (strcmp(param_name, "QOS") == 0)
+                {
+                    int qos = atoi(param_value);
+                    if (qos >= 0 && qos < SMCONF_QOS_MAX)
+                    {
+                        config->qos = (smconf_qos_t)qos;
+                    }
+                }
+                else if (strcmp(param_name, "TOPIC") == 0)
+                {
+                    strncpy(config->topic, param_value, SMCONF_TOPIC_MAX_LEN - 1);
+                }
+                else if (strcmp(param_name, "MESSAGE") == 0)
+                {
+                    strncpy(config->message, param_value, SMCONF_MESSAGE_MAX_LEN - 1);
+                }
+                else if (strcmp(param_name, "RETAIN") == 0)
+                {
+                    config->retain = (atoi(param_value) == 1);
+                }
+                else if (strcmp(param_name, "SUBHEX") == 0)
+                {
+                    config->subhex = (atoi(param_value) == 1);
+                }
+                else if (strcmp(param_name, "ASYNCMODE") == 0)
+                {
+                    config->async_mode = (atoi(param_value) == 1);
+                }
+                // Ignore any unknown parameters without warning
+            }
+
+            // Move to next line
+            current_pos = line_end + 2;
+        }
+
+        // Log parsed configuration
+        ESP_LOGI(TAG, "Parsed MQTT Configuration:");
+        ESP_LOGI(TAG, "  Client ID: %s", config->client_id[0] ? config->client_id : "<empty>");
+        ESP_LOGI(TAG, "  URL: %s", config->url[0] ? config->url : "<empty>");
+        ESP_LOGI(TAG, "  Port: %u", config->port);
+        ESP_LOGI(TAG, "  Keep Time: %u", config->keeptime);
+        ESP_LOGI(TAG, "  Username: %s", config->username[0] ? config->username : "<empty>");
+        ESP_LOGI(TAG, "  Password: %s", config->password[0] ? "*****" : "<empty>");
+        ESP_LOGI(TAG, "  Clean Session: %s", config->clean_session ? "Yes" : "No");
+        ESP_LOGI(TAG, "  QoS: %s", smconf_qos_to_str(config->qos));
+        ESP_LOGI(TAG, "  Topic: %s", config->topic[0] ? config->topic : "<empty>");
+        ESP_LOGI(TAG, "  Message: %s", config->message[0] ? config->message : "<empty>");
+        ESP_LOGI(TAG, "  Retain: %s", config->retain ? "Yes" : "No");
+        ESP_LOGI(TAG, "  SubHex: %s", config->subhex ? "Yes" : "No");
+        ESP_LOGI(TAG, "  Async Mode: %s", config->async_mode ? "Yes" : "No");
+
+        return ESP_OK;
+    }
+
+    return ESP_ERR_INVALID_RESPONSE;
+}
+
+const char *smconf_param_to_str(smconf_param_t param)
+{
+    static const char *const strings[] = {
+        "CLIENTID",
+        "URL",
+        "KEEPTIME",
+        "USERNAME",
+        "PASSWORD",
+        "CleanSS",
+        "QOS",
+        "TOPIC",
+        "MESSAGE",
+        "RETAIN",
+        "SUBHEX",
+        "ASYNCMODE"};
+
+    if (param >= SMCONF_PARAM_MAX)
+    {
+        return "Invalid Parameter";
+    }
+    return strings[param];
+}
+
+const char *smconf_qos_to_str(smconf_qos_t qos)
+{
+    static const char *const strings[] = {
+        "QoS 0",
+        "QoS 1",
+        "QoS 2"};
+
+    if (qos >= SMCONF_QOS_MAX)
+    {
+        return "Invalid QoS";
+    }
+    return strings[qos];
+}
+
 // --------------------- CEREG -------------------------//
 // -----------------------------------------------------//
 // const char *cereg_mode_to_str(cereg_mode_t mode)

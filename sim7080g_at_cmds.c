@@ -129,6 +129,14 @@ const at_cmd_t AT_CNACT = {
     .write = {WRITE_CMD("AT+CNACT"), "OK"},
     .execute = {0}};
 
+const at_cmd_t AT_SMCONF = {
+    .name = "AT+SMCONF",
+    .description = "MQTT Configuration - Set MQTT parameters including broker URL, credentials, and session options",
+    .test = {TEST_CMD("AT+SMCONF"), "OK"},
+    .read = {READ_CMD("AT+SMCONF"), "+SMCONF: \"%[^\"]\",\"%[^\"]\""},
+    .write = {WRITE_CMD("AT+SMCONF"), "OK"},
+    .execute = {0}};
+
 // const at_cmd_t AT_CEREG = {
 //     .name = "AT+CEREG",
 //     .description = "EPS Network Registration Status - Controls and reports network registration and location information",
@@ -137,14 +145,6 @@ const at_cmd_t AT_CNACT = {
 //         "+CEREG: (0-2,4)"},
 //     .read = {READ_CMD("AT+CEREG"), "+CEREG: %d,%d[,[\"%[^\"]\"],[\"%[^\"]\"],[\"%[^\"]\"],%d][,,[,[%[^]],[%[^]]]]]"},
 //     .write = {WRITE_CMD("AT+CEREG"), "OK"},
-//     .execute = {0}};
-
-// const at_cmd_t AT_SMCONF = {
-//     .name = "AT+SMCONF",
-//     .description = "MQTT Configuration - Set MQTT parameters including broker URL, credentials, and session options",
-//     .test = {TEST_CMD("AT+SMCONF"), "OK"},
-//     .read = {READ_CMD("AT+SMCONF"), "+SMCONF: \"%[^\"]\",\"%[^\"]\""},
-//     .write = {WRITE_CMD("AT+SMCONF"), "OK"},
 //     .execute = {0}};
 
 // const at_cmd_t AT_SMCONN = {

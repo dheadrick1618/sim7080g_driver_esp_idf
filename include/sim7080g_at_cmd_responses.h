@@ -348,6 +348,68 @@ esp_err_t parse_cnact_response(const char *response_str, cnact_parsed_response_t
 const char *cnact_action_to_str(cnact_action_t action);
 const char *cnact_status_to_str(cnact_status_t status);
 
+// --------------------- SMCONF -------------------------//
+// ----------------------------------------------------//
+
+typedef enum
+{
+    SMCONF_QOS_AT_MOST_ONCE = 0,
+    SMCONF_QOS_AT_LEAST_ONCE = 1,
+    SMCONF_QOS_EXACTLY_ONCE = 2,
+    SMCONF_QOS_MAX = 3
+} smconf_qos_t;
+
+typedef enum
+{
+    SMCONF_PARAM_CLIENTID,
+    SMCONF_PARAM_URL,
+    SMCONF_PARAM_KEEPTIME,
+    SMCONF_PARAM_USERNAME,
+    SMCONF_PARAM_PASSWORD,
+    SMCONF_PARAM_CLEANSS,
+    SMCONF_PARAM_QOS,
+    SMCONF_PARAM_TOPIC,
+    SMCONF_PARAM_MESSAGE,
+    SMCONF_PARAM_RETAIN,
+    SMCONF_PARAM_SUBHEX,
+    SMCONF_PARAM_ASYNCMODE,
+    SMCONF_PARAM_MAX
+} smconf_param_t;
+
+#define SMCONF_CLIENTID_MAX_LEN 128
+#define SMCONF_URL_MAX_LEN 246
+#define SMCONF_USERNAME_MAX_LEN 256
+#define SMCONF_PASSWORD_MAX_LEN 512
+#define SMCONF_TOPIC_MAX_LEN 128
+#define SMCONF_MESSAGE_MAX_LEN 1024
+#define SMCONF_PORT_MAX 65535
+
+typedef struct
+{
+    char client_id[SMCONF_CLIENTID_MAX_LEN + 1];
+    char url[SMCONF_URL_MAX_LEN + 1];
+    uint16_t port;
+    uint16_t keeptime;
+    char username[SMCONF_USERNAME_MAX_LEN + 1];
+    char password[SMCONF_PASSWORD_MAX_LEN + 1];
+    bool clean_session;
+    smconf_qos_t qos;
+    char topic[SMCONF_TOPIC_MAX_LEN + 1];
+    char message[SMCONF_MESSAGE_MAX_LEN + 1];
+    bool retain;
+    bool subhex;
+    bool async_mode;
+} smconf_config_t;
+
+typedef struct
+{
+    smconf_config_t config;
+} smconf_parsed_response_t;
+
+esp_err_t parse_smconf_response(const char *response_str, smconf_parsed_response_t *parsed_response, at_cmd_type_t cmd_type);
+const char *smconf_param_to_str(smconf_param_t param);
+const char *smconf_qos_to_str(smconf_qos_t qos);
+
 // --------------------- CEREG -------------------------//
 // -----------------------------------------------------//
 // typedef enum

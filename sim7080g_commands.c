@@ -69,6 +69,11 @@ static esp_err_t cnact_parser_wrapper(const char *response, void *parsed_respons
     return parse_cnact_response(response, (cnact_parsed_response_t *)parsed_response, cmd_type);
 }
 
+static esp_err_t smconf_parser_wrapper(const char *response, void *parsed_response, at_cmd_type_t cmd_type)
+{
+    return parse_smconf_response(response, (smconf_parsed_response_t *)parsed_response, cmd_type);
+}
+
 // --------------------------------------- FXNS to use SIM7080G AT Commands --------------------------------------- //
 // ----------------------------- (main driver uses these fxns inside its user exposed fxns) ------------------- //
 
@@ -749,7 +754,84 @@ esp_err_t sim7080g_activate_network(const sim7080g_handle_t *handle, uint8_t pdp
 }
 
 // Get MQTT configuration parameters (SMCONF)
+esp_err_t sim7080g_get_mqtt_config(const sim7080g_handle_t *handle, smconf_config_t *config)
+{
+    if ((handle == NULL) || (config == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_LOGI(TAG, "Reading MQTT configuration");
+
+    smconf_parsed_response_t response = {0};
+
+    static const at_cmd_handler_config_t handler_config = {
+        .parser = smconf_parser_wrapper,
+        .timeout_ms = 5000U,
+        .retry_delay_ms = 1000U};
+
+    esp_err_t ret = send_at_cmd_with_parser(
+        handle,
+        &AT_SMCONF,
+        AT_CMD_TYPE_READ,
+        NULL,
+        &response,
+        &handler_config);
+
+    if (ret == ESP_OK)
+    {
+        memcpy(config, &response.config, sizeof(smconf_config_t));
+        ESP_LOGI(TAG, "Successfully read MQTT configuration");
+    }
+
+    return ret;
+}
+
 // Set MQTT configuration parameters (SMCONF)
+esp_err_t sim7080g_set_mqtt_param(const sim7080g_handle_t *handle,
+                                  smconf_param_t param,
+                                  const char *value)
+{
+    if ((handle == NULL) || (value == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if (param >= SMCONF_PARAM_MAX)
+    {
+        ESP_LOGE(TAG, "Invalid MQTT parameter");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_LOGI(TAG, "Setting MQTT parameter %s to %s",
+             smconf_param_to_str(param), value);
+
+    char args[SMCONF_MESSAGE_MAX_LEN + 32] = {0};
+    snprintf(args, sizeof(args), "\"%s\",\"%s\"",
+             smconf_param_to_str(param), value);
+
+    static const at_cmd_handler_config_t config = {
+        .parser = smconf_parser_wrapper,
+        .timeout_ms = 5000U,
+        .retry_delay_ms = 1000U};
+
+    esp_err_t ret = send_at_cmd_with_parser(
+        handle,
+        &AT_SMCONF,
+        AT_CMD_TYPE_WRITE,
+        args,
+        NULL,
+        &config);
+
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to set MQTT parameter");
+        return ret;
+    }
+
+    ESP_LOGI(TAG, "Successfully set MQTT parameter");
+    return ESP_OK;
+}
 
 // Connect to MQTT broker
 // Disconnect from MQTT broker

@@ -126,6 +126,7 @@ esp_err_t send_receive_at_cmd(const sim7080g_handle_t *sim7080g_handle,
 
     // Flush UART before sending new command
     uart_flush(sim7080g_handle->uart_config.port_num);
+    vTaskDelay(pdMS_TO_TICKS(AT_CMD_UART_FLUSH_DELAY_MS));
 
     // Send command
     int32_t bytes_written = uart_write_bytes(sim7080g_handle->uart_config.port_num,

@@ -189,7 +189,9 @@ extern const at_cmd_t AT_CNACT;
 // ///   - ERROR
 // /// @note The read command returns the current configuration for all parameters
 // /// @note The test command returns the supported ranges for each parameter
-// extern const at_cmd_t AT_SMCONF;
+
+// Set and get MQTT configuration parameters
+extern const at_cmd_t AT_SMCONF;
 
 // /// @brief MQTT Connection - Establish MQTT connection
 // /// @details This command is used to establish a connection to the MQTT broker using the previously configured parameters.
