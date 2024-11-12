@@ -115,7 +115,8 @@ esp_err_t send_receive_at_cmd(const sim7080g_handle_t *sim7080g_handle,
                               const char *at_cmd,
                               char *response,
                               size_t response_size,
-                              uint32_t timeout_ms)
+                              uint32_t timeout_ms,
+                              at_cmd_type_t cmd_type)
 {
     if ((NULL == sim7080g_handle) || (NULL == at_cmd) ||
         (NULL == response) || (0U == response_size))
@@ -123,8 +124,10 @@ esp_err_t send_receive_at_cmd(const sim7080g_handle_t *sim7080g_handle,
         return ESP_ERR_INVALID_ARG;
     }
 
+    // Flush UART before sending new command
     uart_flush(sim7080g_handle->uart_config.port_num);
 
+    // Send command
     int32_t bytes_written = uart_write_bytes(sim7080g_handle->uart_config.port_num,
                                              at_cmd, strlen(at_cmd));
     if (bytes_written < 0)
@@ -133,28 +136,86 @@ esp_err_t send_receive_at_cmd(const sim7080g_handle_t *sim7080g_handle,
         return ESP_FAIL;
     }
 
-    int32_t bytes_read = uart_read_bytes(sim7080g_handle->uart_config.port_num,
-                                         response,
-                                         response_size - 1U,
-                                         pdMS_TO_TICKS(timeout_ms));
-    if (bytes_read < 0)
+    uint32_t start_time = pdTICKS_TO_MS(xTaskGetTickCount());
+    size_t total_bytes_read = 0U;
+    bool response_complete = false;
+    char temp_buffer[AT_CMD_UART_READ_CHUNK_SIZE];
+
+    // Clear response buffer
+    memset(response, 0, response_size);
+
+    while ((pdTICKS_TO_MS(xTaskGetTickCount()) - start_time) < timeout_ms)
     {
-        ESP_LOGE(TAG, "Failed to read response");
-        return ESP_FAIL;
+        // Read in smaller chunks
+        int32_t bytes_read = uart_read_bytes(sim7080g_handle->uart_config.port_num,
+                                             (uint8_t *)temp_buffer,
+                                             sizeof(temp_buffer) - 1U,
+                                             pdMS_TO_TICKS(AT_CMD_UART_READ_INTERVAL_MS));
+
+        if (bytes_read > 0)
+        {
+            // Ensure we don't overflow the response buffer
+            if ((total_bytes_read + (size_t)bytes_read) >= response_size)
+            {
+                return ESP_FAIL;
+            }
+
+            // Append new data to response
+            memcpy(response + total_bytes_read, temp_buffer, (size_t)bytes_read);
+            total_bytes_read += (size_t)bytes_read;
+            response[total_bytes_read] = '\0';
+
+            // Check for response completion based on command type
+            if (AT_CMD_TYPE_WRITE == cmd_type)
+            {
+                // Write commands only expect OK/ERROR
+                if (strstr(response, AT_CMD_RESPONSE_TERMINATOR_OK) ||
+                    strstr(response, AT_CMD_RESPONSE_TERMINATOR_ERROR))
+                {
+                    response_complete = true;
+                    break;
+                }
+            }
+            else
+            {
+                // For other commands, we need to look for both data and OK/ERROR
+                const char *ok_pos = strstr(response, AT_CMD_RESPONSE_TERMINATOR_OK);
+                const char *error_pos = strstr(response, AT_CMD_RESPONSE_TERMINATOR_ERROR);
+
+                // Special handling for read/test commands that expect data
+                if (AT_CMD_TYPE_READ == cmd_type || AT_CMD_TYPE_TEST == cmd_type)
+                {
+                    // Look for command-specific response prefix and terminator
+                    if ((ok_pos || error_pos) && strstr(response, "+"))
+                    {
+                        response_complete = true;
+                        break;
+                    }
+                }
+                else if (ok_pos || error_pos)
+                {
+                    response_complete = true;
+                    break;
+                }
+            }
+        }
+
+        // Small delay to prevent tight polling
+        vTaskDelay(pdMS_TO_TICKS(1));
     }
 
-    if (0 == bytes_read)
+    if (!response_complete)
     {
-        ESP_LOGW(TAG, "Command timeout");
+        ESP_LOGW(TAG, "Response timeout or incomplete after %" PRIu32 " ms", timeout_ms);
         return ESP_ERR_TIMEOUT;
     }
 
-    response[bytes_read] = '\0';
-    ESP_LOGD(TAG, "Received %" PRId32 " bytes: %s", bytes_read, response);
+    ESP_LOGD(TAG, "Response received in %" PRIu32 " ms",
+             pdTICKS_TO_MS(xTaskGetTickCount()) - start_time);
+    ESP_LOGD(TAG, "Received %zu bytes: %s", total_bytes_read, response);
 
     return ESP_OK;
 }
-
 /// @brief Check for OK or ERROR in the response, and use custome AT response type to differentiate (prevents confusion with driver/system errors and device response as 'error')
 at_response_status_t check_at_response_status(const char *response)
 {
@@ -174,6 +235,96 @@ at_response_status_t check_at_response_status(const char *response)
     }
 
     return AT_RESPONSE_UNEXPECTED;
+}
+
+esp_err_t read_uart_response(const sim7080g_handle_t *sim7080g_handle,
+                             char *response,
+                             size_t response_size,
+                             uint32_t timeout_ms,
+                             at_cmd_type_t cmd_type)
+{
+    if ((NULL == sim7080g_handle) || (NULL == response) || (0U == response_size))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint32_t start_time = pdTICKS_TO_MS(xTaskGetTickCount());
+    size_t total_bytes_read = 0U;
+    bool response_complete = false;
+    char temp_buffer[AT_CMD_UART_READ_CHUNK_SIZE];
+
+    // Clear response buffer
+    memset(response, 0, response_size);
+
+    while ((pdTICKS_TO_MS(xTaskGetTickCount()) - start_time) < timeout_ms)
+    {
+        // Read in smaller chunks
+        int32_t bytes_read = uart_read_bytes(sim7080g_handle->uart_config.port_num,
+                                             (uint8_t *)temp_buffer,
+                                             sizeof(temp_buffer) - 1U,
+                                             pdMS_TO_TICKS(AT_CMD_UART_READ_INTERVAL_MS));
+
+        if (bytes_read > 0)
+        {
+            // Ensure we don't overflow the response buffer
+            if ((total_bytes_read + (size_t)bytes_read) >= response_size)
+            {
+                return ESP_FAIL;
+            }
+
+            // Append new data to response
+            memcpy(response + total_bytes_read, temp_buffer, (size_t)bytes_read);
+            total_bytes_read += (size_t)bytes_read;
+            response[total_bytes_read] = '\0';
+
+            // Check for response completion based on command type
+            if (AT_CMD_TYPE_WRITE == cmd_type)
+            {
+                // Write commands only expect OK/ERROR
+                if (strstr(response, AT_CMD_RESPONSE_TERMINATOR_OK) ||
+                    strstr(response, AT_CMD_RESPONSE_TERMINATOR_ERROR))
+                {
+                    response_complete = true;
+                    break;
+                }
+            }
+            else
+            {
+                // For other commands, we need to look for both data and OK/ERROR
+                const char *ok_pos = strstr(response, AT_CMD_RESPONSE_TERMINATOR_OK);
+                const char *error_pos = strstr(response, AT_CMD_RESPONSE_TERMINATOR_ERROR);
+
+                // Special handling for read/test commands that expect data
+                if (AT_CMD_TYPE_READ == cmd_type || AT_CMD_TYPE_TEST == cmd_type)
+                {
+                    // Look for command-specific response prefix
+                    if ((ok_pos || error_pos) && strstr(response, "+"))
+                    {
+                        response_complete = true;
+                        break;
+                    }
+                }
+                else if (ok_pos || error_pos)
+                {
+                    response_complete = true;
+                    break;
+                }
+            }
+        }
+
+        // Small delay to prevent tight polling
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+
+    if (!response_complete)
+    {
+        ESP_LOGW(TAG, "Response timeout or incomplete after %" PRIu32 " ms", timeout_ms);
+        return ESP_ERR_TIMEOUT;
+    }
+
+    ESP_LOGD(TAG, "Response received in %" PRIu32 " ms",
+             pdTICKS_TO_MS(xTaskGetTickCount()) - start_time);
+    return ESP_OK;
 }
 
 esp_err_t send_at_cmd_with_parser(const sim7080g_handle_t *sim7080g_handle,
@@ -220,7 +371,7 @@ esp_err_t send_at_cmd_with_parser(const sim7080g_handle_t *sim7080g_handle,
         }
 
         ret = send_receive_at_cmd(sim7080g_handle, at_cmd, response,
-                                  sizeof(response), handler_config->timeout_ms);
+                                  sizeof(response), handler_config->timeout_ms, type);
         if (ESP_OK != ret)
         {
             continue;

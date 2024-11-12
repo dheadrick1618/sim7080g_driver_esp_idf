@@ -13,6 +13,11 @@
 #define AT_CMD_MAX_LEN 256U
 #define AT_CMD_MAX_RETRIES 5U // TODO - Maybe give each command a specific retry count
 
+#define AT_CMD_UART_READ_CHUNK_SIZE 32U
+#define AT_CMD_UART_READ_INTERVAL_MS 10U
+#define AT_CMD_RESPONSE_TERMINATOR_OK "\r\nOK\r\n"
+#define AT_CMD_RESPONSE_TERMINATOR_ERROR "\r\nERROR\r\n"
+
 // Specific error type for device response to AT command error returns (differentiate a system/driver error with and device response status)
 // i.e. the sim7080g device returning an 'error' is not the same as the driver code failing to send the command (which is system/driver error)
 typedef enum
@@ -63,10 +68,23 @@ esp_err_t send_receive_at_cmd(const sim7080g_handle_t *sim7080g_handle,
                               const char *at_cmd,
                               char *response,
                               size_t response_size,
-                              uint32_t timeout_ms);
+                              uint32_t timeout_ms,
+                              at_cmd_type_t cmd_type);
 
 /// @brief Check for OK or ERROR in the response, and use custome AT response type to differentiate (prevents confusion with driver/system errors and device response as 'error')
 at_response_status_t check_at_response_status(const char *response);
+
+/// @brief Read UART response and store it in response buffer. This uses the 'cmd type' to determine how to handle the command
+/// @note:Different AT command types have different response patterns:
+/// @note - Write commands typically just respond with "OK" or "ERROR"
+/// @note - Read commands usually respond with data + "OK" or "ERROR"
+/// @note - Test commands show supported parameters + "OK" or "ERROR"
+/// @note - Execute commands vary but often just "OK" or "ERROR"
+esp_err_t read_uart_response(const sim7080g_handle_t *sim7080g_handle,
+                             char *response,
+                             size_t response_size,
+                             uint32_t timeout_ms,
+                             at_cmd_type_t cmd_type);
 
 /// @brief THIS command is what is called by API fxns using AT commands to interact with the SIM7080g device
 esp_err_t send_at_cmd_with_parser(const sim7080g_handle_t *sim7080g_handle,
