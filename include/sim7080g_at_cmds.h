@@ -230,6 +230,9 @@ extern const at_cmd_t AT_SMPUB;
 // Check MQTT connected status
 extern const at_cmd_t AT_SMSTATE;
 
+/// @brief EPS Network Registration - Enable or disable EPS network registration status
+extern const at_cmd_t AT_CEREG;
+
 // /// @brief Subscribe Packet - Subscribe to an MQTT topic
 // /// @details This command is used to subscribe to a specified MQTT topic.
 // /// @param topic The topic to subscribe to (max length returned by test command)
@@ -261,9 +264,6 @@ extern const at_cmd_t AT_SMSTATE;
 // /// @note No read or test commands are available for this command
 // /// @note The disconnection is performed immediately upon execution of this command
 // extern const at_cmd_t AT_SMDISC;
-
-// /// @brief EPS Network Registration - Enable or disable EPS network registration status
-// extern const at_cmd_t AT_CEREG;
 
 // /// @brief Query TCP/UDP Connection Status - Check current connection status
 // extern const at_cmd_t AT_CASTATE;

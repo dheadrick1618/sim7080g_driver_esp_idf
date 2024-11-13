@@ -59,43 +59,38 @@ static esp_err_t config_device_mqtt_params(const sim7080g_handle_t *handle)
     }
 
     // 2. Configure URL and Port together
-    char url_with_port[SMCONF_URL_MAX_LEN + 32] = {0};
+    // Configure URL only - since SMCONF doesn't have a separate port parameter
     char device_url[SMCONF_URL_MAX_LEN] = {0};
-    uint16_t device_port = 0;
 
-    // Parse device URL and port by splitting on comma
+    // Parse device URL ignoring any port part
     char *comma = strchr(device_params.url, ',');
     if (comma != NULL)
     {
         size_t url_len = comma - device_params.url;
         strncpy(device_url, device_params.url, url_len);
-        device_port = (uint16_t)atoi(comma + 1);
     }
     else
     {
         strncpy(device_url, device_params.url, sizeof(device_url) - 1);
-        device_port = device_params.port;
     }
 
-    // Now compare the actual URL and port separately
+    // Compare just the URL portion
     bool url_different = strcmp(device_url, handle->mqtt_config.broker_url) != 0;
-    bool port_different = device_port != handle->mqtt_config.port;
 
-    if (url_different || port_different)
+    if (url_different)
     {
-        snprintf(url_with_port, sizeof(url_with_port), "%s,%u",
-                 handle->mqtt_config.broker_url,
-                 handle->mqtt_config.port);
-
-        err = sim7080g_set_mqtt_param(handle, SMCONF_PARAM_URL, url_with_port);
+        // Set just the URL without appending port
+        err = sim7080g_set_mqtt_param(handle, SMCONF_PARAM_URL, handle->mqtt_config.broker_url);
         if (err != ESP_OK)
         {
-            ESP_LOGE(TAG, "Failed to set URL and port: %s", esp_err_to_name(err));
+            ESP_LOGE(TAG, "Failed to set URL: %s", esp_err_to_name(err));
             return err;
         }
         params_updated = true;
-        ESP_LOGI(TAG, "Updated broker URL and port to: %s", url_with_port);
+        ESP_LOGI(TAG, "Updated broker URL to: %s", handle->mqtt_config.broker_url);
     }
+
+    // err = sim7080g_set_mqtt_param(handle, SMCONF_PARAM_URL, handle->mqtt_config.broker_url);
 
     // 3. Configure Username
     if (strcmp(device_params.username, handle->mqtt_config.username) != 0)
@@ -252,9 +247,29 @@ esp_err_t sim7080g_connect_to_network_bearer(const sim7080g_handle_t *sim7080g_h
     {
         return ESP_ERR_INVALID_ARG;
     }
-
     esp_err_t err;
-    const char *TAG = "Network Connect";
+    const char *TAG = "SIM7080G Connect To Network Bearer";
+
+    // FIRST check if already connected
+    cnact_parsed_response_t status_info = {0};
+    err = sim7080g_get_network_status(sim7080g_handle, &status_info);
+    if (err == ESP_OK)
+    {
+        // Check if any context is already active
+        for (uint8_t i = 0; i < status_info.num_contexts; i++)
+        {
+            if (status_info.contexts[i].status == CNACT_STATUS_ACTIVATED)
+            {
+                ESP_LOGI(TAG, "Network already activated with IP: %s",
+                         status_info.contexts[i].ip_address);
+                return ESP_OK;
+            }
+        }
+    }
+    else
+    {
+        ESP_LOGW(TAG, "Failed to check network status, attempting connection anyway");
+    }
 
     // Step 1: Disable RF functionality first to ensure clean state
     ESP_LOGI(TAG, "Disabling RF functionality...");
@@ -379,4 +394,43 @@ esp_err_t sim7080g_connect_to_network_bearer(const sim7080g_handle_t *sim7080g_h
 
     ESP_LOGE(TAG, "Network activation verification failed");
     return ESP_FAIL;
+}
+
+esp_err_t sim7080g_mqtt_connect(const sim7080g_handle_t *sim7080g_handle)
+{
+    if (sim7080g_handle == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+    const char *TAG = "SIM7080G MQTT Connect";
+
+    // Check if connected already - if so do not connect
+    smstate_status_t state;
+    esp_err_t err = sim7080g_mqtt_check_connection_status(sim7080g_handle, &state);
+    if (err != ESP_OK)
+    {
+        ESP_LOGI(TAG, "Failed to check MQTT connection status");
+        return ESP_FAIL;
+    }
+    if (state == SMSTATE_STATUS_CONNECTED)
+    {
+        ESP_LOGI(TAG, "Already connected to MQTT broker");
+        return ESP_OK;
+    }
+    else if (state == SMSTATE_STATUS_CONNECTED_WITH_SESSION)
+    {
+        ESP_LOGI(TAG, "Already connected to MQTT broker with session");
+        return ESP_OK;
+    }
+
+    // Connect to MQTT broker
+    err = sim7080g_mqtt_connect_to_broker(sim7080g_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to connect to MQTT broker");
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "Connected to MQTT broker");
+    return ESP_OK;
 }

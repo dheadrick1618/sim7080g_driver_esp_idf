@@ -83,9 +83,12 @@ static esp_err_t smstate_parser_wrapper(const char *response,
                                         void *parsed_response,
                                         at_cmd_type_t cmd_type)
 {
-    return parse_smstate_response(response,
-                                  (smstate_parsed_response_t *)parsed_response,
-                                  cmd_type);
+    return parse_smstate_response(response, (smstate_parsed_response_t *)parsed_response, cmd_type);
+}
+
+static esp_err_t cereg_parser_wrapper(const char *response, void *parsed_response, at_cmd_type_t cmd_type)
+{
+    return parse_cereg_response(response, (cereg_parsed_response_t *)parsed_response, cmd_type);
 }
 
 // --------------------------------------- FXNS to use SIM7080G AT Commands --------------------------------------- //
@@ -461,7 +464,8 @@ esp_err_t sim7080g_set_gprs_attachment(const sim7080g_handle_t *handle, cgatt_st
 
     static const at_cmd_handler_config_t config = {
         .parser = cgatt_parser_wrapper,
-        .timeout_ms = 75000U,   // 75 second timeout as per spec
+        // .timeout_ms = 75000U,   // 75 second timeout as per spec
+        .timeout_ms = 25000U,   // 25 second timeout (even though spec says 75s)
         .retry_delay_ms = 1000U // 1 sec
     };
 
@@ -781,7 +785,7 @@ esp_err_t sim7080g_get_mqtt_config(const sim7080g_handle_t *handle, smconf_confi
 
     static const at_cmd_handler_config_t handler_config = {
         .parser = smconf_parser_wrapper,
-        .timeout_ms = 5000U,
+        .timeout_ms = 7000U,
         .retry_delay_ms = 1000U};
 
     esp_err_t ret = send_at_cmd_with_parser(
@@ -1023,3 +1027,51 @@ esp_err_t sim7080g_mqtt_check_connection_status(const sim7080g_handle_t *handle,
 // Subscribe to MQTT broker
 
 // Disconnect from MQTT broker
+
+// Get EPS network registration status (CEREG)
+esp_err_t sim7080g_get_eps_network_reg_info(const sim7080g_handle_t *handle,
+                                            cereg_parsed_response_t *status_out)
+{
+    if ((handle == NULL) || (status_out == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_LOGI(TAG, "Reading EPS network registration status");
+
+    static const at_cmd_handler_config_t config = {
+        .parser = cereg_parser_wrapper,
+        .timeout_ms = 5000U,
+        .retry_delay_ms = 1000U};
+
+    esp_err_t ret = send_at_cmd_with_parser(
+        handle,
+        &AT_CEREG,
+        AT_CMD_TYPE_READ,
+        NULL,
+        status_out,
+        &config);
+
+    if (ret == ESP_OK)
+    {
+        ESP_LOGI(TAG, "EPS Registration Status: %s",
+                 cereg_status_to_str(status_out->status));
+
+        if (status_out->has_location_info)
+        {
+            ESP_LOGI(TAG, "Location Info - TAC: %s, CI: %s, Access Tech: %s",
+                     status_out->tac,
+                     status_out->ci,
+                     cereg_act_to_str(status_out->act));
+        }
+
+        if (status_out->has_psm_info)
+        {
+            ESP_LOGI(TAG, "PSM Info - Active Time: %s, Periodic TAU: %s",
+                     status_out->active_time,
+                     status_out->periodic_tau);
+        }
+    }
+
+    return ret;
+}

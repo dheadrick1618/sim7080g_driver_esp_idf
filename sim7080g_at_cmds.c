@@ -170,15 +170,15 @@ const at_cmd_t AT_SMSTATE = {
     .write = {0},
     .execute = {0}};
 
-// const at_cmd_t AT_CEREG = {
-//     .name = "AT+CEREG",
-//     .description = "EPS Network Registration Status - Controls and reports network registration and location information",
-//     .test = {
-//         TEST_CMD("AT+CEREG"),
-//         "+CEREG: (0-2,4)"},
-//     .read = {READ_CMD("AT+CEREG"), "+CEREG: %d,%d[,[\"%[^\"]\"],[\"%[^\"]\"],[\"%[^\"]\"],%d][,,[,[%[^]],[%[^]]]]]"},
-//     .write = {WRITE_CMD("AT+CEREG"), "OK"},
-//     .execute = {0}};
+const at_cmd_t AT_CEREG = {
+    .name = "AT+CEREG",
+    .description = "EPS Network Registration Status",
+    .test = {
+        TEST_CMD("AT+CEREG"),
+        "+CEREG: (0-2,4)"},
+    .read = {READ_CMD("AT+CEREG"), "+CEREG: %d,%d[,[\"%[^\"]\"],[\"%[^\"]\"],[\"%[^\"]\"],%d][,,[,[%[^]],[%[^]]]]]"},
+    .write = {WRITE_CMD("AT+CEREG"), "OK"},
+    .execute = {0}};
 
 // const at_cmd_t AT_SMSUB = {
 //     .name = "AT+SMSUB",

@@ -87,3 +87,6 @@ esp_err_t sim7080g_mqtt_check_connection_status(const sim7080g_handle_t *handle,
 // Disconnect from MQTT broker
 
 // Subscribe to MQTT broker
+
+// Get EPS network registration status vars (CEREG)
+esp_err_t sim7080g_get_eps_network_reg_info(const sim7080g_handle_t *handle, cereg_parsed_response_t *reg_status);

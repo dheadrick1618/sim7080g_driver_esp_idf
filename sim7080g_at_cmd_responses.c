@@ -1263,7 +1263,6 @@ esp_err_t parse_smconf_response(const char *response_str, smconf_parsed_response
         ESP_LOGI(TAG, "Parsed MQTT Configuration:");
         ESP_LOGI(TAG, "  Client ID: %s", config->client_id[0] ? config->client_id : "<empty>");
         ESP_LOGI(TAG, "  URL: %s", config->url[0] ? config->url : "<empty>");
-        ESP_LOGI(TAG, "  Port: %u", config->port);
         ESP_LOGI(TAG, "  Keep Time: %u", config->keeptime);
         ESP_LOGI(TAG, "  Username: %s", config->username[0] ? config->username : "<empty>");
         ESP_LOGI(TAG, "  Password: %s", config->password[0] ? "*****" : "<empty>");
@@ -1464,113 +1463,147 @@ const char *smstate_status_to_str(smstate_status_t status)
 
 // --------------------- CEREG -------------------------//
 // -----------------------------------------------------//
-// const char *cereg_mode_to_str(cereg_mode_t mode)
-// {
-//     static const char *const strings[] = {
-//         "Disable network registration URC",
-//         "Enable network registration URC",
-//         "Enable network registration and location URC",
-//         "Enable network registration, location and PSM URC"};
+esp_err_t parse_cereg_response(const char *response_str,
+                               cereg_parsed_response_t *parsed_response,
+                               at_cmd_type_t cmd_type)
+{
+    if ((response_str == NULL) || (parsed_response == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
 
-//     if (mode >= CEREG_MODE_MAX)
-//     {
-//         return "Invalid Mode";
-//     }
-//     return strings[mode];
-// }
+    // For WRITE command, just verify we got OK
+    if (cmd_type == AT_CMD_TYPE_WRITE)
+    {
+        if (strstr(response_str, "OK") != NULL)
+        {
+            return ESP_OK;
+        }
+        return ESP_ERR_INVALID_RESPONSE;
+    }
 
-// const char *cereg_status_to_str(cereg_status_t status)
-// {
-//     static const char *const strings[] = {
-//         "Not registered, not searching",
-//         "Registered, home network",
-//         "Not registered, searching",
-//         "Registration denied",
-//         "Unknown",
-//         "Registered, roaming"};
+    // Find the +CEREG: response in the string
+    const char *cereg_start = strstr(response_str, "+CEREG:");
+    if (cereg_start == NULL)
+    {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
 
-//     if (status >= CEREG_STATUS_MAX)
-//     {
-//         return "Invalid Status";
-//     }
-//     return strings[status];
-// }
+    // Skip past "+CEREG: "
+    cereg_start += 7;
 
-// const char *cereg_act_to_str(cereg_act_t act)
-// {
-//     static const char *const strings[] = {
-//         "GSM",
-//         "Unknown",
-//         "Unknown",
-//         "Unknown",
-//         "Unknown",
-//         "Unknown",
-//         "Unknown",
-//         "LTE M1",
-//         "Unknown",
-//         "LTE NB"};
+    // Initialize parsed response
+    memset(parsed_response, 0, sizeof(cereg_parsed_response_t));
 
-//     if (act >= CEREG_ACT_MAX)
-//     {
-//         return "Invalid Access Technology";
-//     }
-//     return strings[act];
-// }
+    // Parse mode and status (always present)
+    int mode = 0, status = 0;
+    int matched = sscanf(cereg_start, "%d,%d", &mode, &status);
+    if (matched < 2)
+    {
+        return ESP_ERR_INVALID_RESPONSE;
+    }
 
-// esp_err_t parse_cereg_response(const char *response_str, cereg_response_t *response)
-// {
-//     if (!response_str || !response)
-//     {
-//         return ESP_ERR_INVALID_ARG;
-//     }
+    // Validate mode and status
+    if ((mode < 0) || (mode >= (int)CEREG_MODE_MAX) ||
+        (status < 0) || (status >= (int)CEREG_STATUS_MAX))
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
 
-//     // Initialize response structure
-//     memset(response, 0, sizeof(cereg_response_t));
+    parsed_response->mode = (cereg_mode_t)mode;
+    parsed_response->status = (cereg_status_t)status;
 
-//     // Basic parsing for minimum parameters (mode and status)
-//     int mode, stat;
-//     if (sscanf(response_str, "+CEREG: %d,%d", &mode, &stat) != 2)
-//     {
-//         return ESP_ERR_INVALID_RESPONSE;
-//     }
+    // Look for optional location info
+    if (strstr(cereg_start, ",\"") != NULL)
+    {
+        parsed_response->has_location_info = true;
+        int act = 0;
 
-//     response->mode = (cereg_mode_t)mode;
-//     response->status = (cereg_status_t)stat;
+        matched = sscanf(strstr(cereg_start, ",\""),
+                         ",\"%4[^\"]\",,\"%4[^\"]\",%d",
+                         parsed_response->tac,
+                         parsed_response->ci,
+                         &act);
 
-//     // Check if we have location information
-//     if (strstr(response_str, ",\"") != NULL)
-//     {
-//         response->has_location_info = true;
+        if (matched == 3)
+        {
+            if ((act < 0) || (act >= (int)CEREG_ACT_MAX))
+            {
+                return ESP_ERR_INVALID_STATE;
+            }
+            parsed_response->act = (cereg_act_t)act;
+        }
 
-//         // Parse location information
-//         char tac[5] = {0}, ci[5] = {0};
-//         int act;
+        // Look for optional PSM info (only when mode is 4)
+        if (parsed_response->mode == CEREG_MODE_ENABLE_URC_PSM &&
+            strstr(response_str, ",[,[") != NULL)
+        {
+            parsed_response->has_psm_info = true;
+            matched = sscanf(strstr(response_str, ",[,["),
+                             ",[,[%8[^]],[%8[^]]]",
+                             parsed_response->active_time,
+                             parsed_response->periodic_tau);
 
-//         if (sscanf(strstr(response_str, ",\""), ",\"%4[^\"]\",,\"%4[^\"]\",%d",
-//                    tac, ci, &act) == 3)
-//         {
-//             strncpy(response->tac, tac, sizeof(response->tac) - 1);
-//             strncpy(response->ci, ci, sizeof(response->ci) - 1);
-//             response->act = (cereg_act_t)act;
-//         }
+            if (matched != 2)
+            {
+                return ESP_ERR_INVALID_RESPONSE;
+            }
+        }
+    }
 
-//         // Check if we have PSM information (only valid when mode is 4)
-//         if (response->mode == CEREG_MODE_ENABLE_URC_PSM &&
-//             strstr(response_str, ",[,[") != NULL)
-//         {
-//             response->has_psm_info = true;
+    return ESP_OK;
+}
 
-//             char active_time[9] = {0}, periodic_tau[9] = {0};
-//             if (sscanf(strstr(response_str, ",[,["), ",[,[%8[^]],[%8[^]]]",
-//                        active_time, periodic_tau) == 2)
-//             {
-//                 strncpy(response->active_time, active_time,
-//                         sizeof(response->active_time) - 1);
-//                 strncpy(response->periodic_tau, periodic_tau,
-//                         sizeof(response->periodic_tau) - 1);
-//             }
-//         }
-//     }
+const char *cereg_mode_to_str(cereg_mode_t mode)
+{
+    static const char *const strings[] = {
+        "Disable network registration URC",
+        "Enable network registration URC",
+        "Enable network registration and location URC",
+        "Reserved",
+        "Enable network registration, location and PSM URC"};
 
-//     return ESP_OK;
-// }
+    if (mode >= CEREG_MODE_MAX)
+    {
+        return "Invalid Mode";
+    }
+    return strings[mode];
+}
+
+const char *cereg_status_to_str(cereg_status_t status)
+{
+    static const char *const strings[] = {
+        "Not registered, not searching",
+        "Registered, home network",
+        "Not registered, searching",
+        "Registration denied",
+        "Unknown",
+        "Registered, roaming"};
+
+    if (status >= CEREG_STATUS_MAX)
+    {
+        return "Invalid Status";
+    }
+    return strings[status];
+}
+
+const char *cereg_act_to_str(cereg_act_t act)
+{
+    static const char *const strings[] = {
+        "GSM",
+        "Unknown",
+        "Unknown",
+        "Unknown",
+        "Unknown",
+        "Unknown",
+        "Unknown",
+        "LTE M1",
+        "Unknown",
+        "LTE NB"};
+
+    if (act >= CEREG_ACT_MAX)
+    {
+        return "Invalid Access Technology";
+    }
+    return strings[act];
+}
