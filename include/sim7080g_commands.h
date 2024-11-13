@@ -21,6 +21,7 @@ esp_err_t sim7080g_check_sim_status(const sim7080g_handle_t *handle, cpin_status
 
 // Cycle CFUN - soft reset (CFUN)
 esp_err_t sim7080g_set_functionality(const sim7080g_handle_t *handle, cfun_functionality_t fun_level);
+esp_err_t sim7080g_get_functionality(const sim7080g_handle_t *handle, cfun_functionality_t *fun_level_out);
 
 // Check signal quality (CSQ)
 esp_err_t sim7080g_check_signal_quality(const sim7080g_handle_t *handle, int8_t *rssi_dbm_out, uint8_t *ber_out);

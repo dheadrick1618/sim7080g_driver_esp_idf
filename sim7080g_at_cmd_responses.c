@@ -284,6 +284,7 @@ esp_err_t parse_csq_response(const char *response_str, csq_parsed_response_t *pa
     parsed_response->rssi = (csq_rssi_t)rssi;
     parsed_response->ber = (csq_ber_t)ber;
     parsed_response->rssi_dbm = csq_rssi_to_dbm(parsed_response->rssi);
+    parsed_response->category = csq_rssi_dbm_to_strength_category(parsed_response->rssi_dbm);
 
     return ESP_OK;
 }
@@ -348,6 +349,50 @@ int8_t csq_rssi_to_dbm(csq_rssi_t rssi)
     }
 
     return INT8_MIN; // Invalid RSSI
+}
+
+signal_strength_category_t csq_rssi_dbm_to_strength_category(csq_rssi_t rssi)
+{
+    if (rssi == CSQ_RSSI_NOT_DETECTABLE)
+    {
+        return SIGNAL_STRENGTH_NONE;
+    }
+    else if (rssi <= -100)
+    {
+        return SIGNAL_STRENGTH_NONE;
+    }
+    else if (rssi <= -95)
+    {
+        return SIGNAL_STRENGTH_POOR;
+    }
+    else if (rssi <= -85)
+    {
+        return SIGNAL_STRENGTH_FAIR;
+    }
+    else if (rssi <= -75)
+    {
+        return SIGNAL_STRENGTH_GOOD;
+    }
+    else
+    {
+        return SIGNAL_STRENGTH_EXCELLENT;
+    }
+}
+
+const char *signal_strength_category_to_str(signal_strength_category_t category)
+{
+    static const char *const strings[] = {
+        "None",
+        "Poor",
+        "Fair",
+        "Good",
+        "Excellent"};
+
+    if (category >= SIGNAL_STRENGTH_MAX)
+    {
+        return "Invalid Category";
+    }
+    return strings[category];
 }
 
 // --------------------- ATE -------------------------//

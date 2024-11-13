@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <esp_err.h>
+#include <sim7080g_types.h>
 
 // ------------------- TEST (AT) ----------------------//
 // ----------------------------------------------------//
@@ -88,17 +89,30 @@ typedef enum
     CSQ_BER_MAX = 8 // Values 0-7 represent actual BER levels
 } csq_ber_t;
 
+// typedef enum
+// {
+//     SIGNAL_STRENGTH_NONE = 0,
+//     SIGNAL_STRENGTH_POOR = 1,
+//     SIGNAL_STRENGTH_FAIR = 2,
+//     SIGNAL_STRENGTH_GOOD = 3,
+//     SIGNAL_STRENGTH_EXCELLENT = 4,
+//     SIGNAL_STRENGTH_MAX = 5
+// } signal_strength_category_t;
+
 typedef struct
 {
-    csq_rssi_t rssi; // Received Signal Strength Indication
-    csq_ber_t ber;   // Bit Error Rate
-    int8_t rssi_dbm; // RSSI converted to dBm for easier interpretation
+    csq_rssi_t rssi;                     // Received Signal Strength Indication
+    csq_ber_t ber;                       // Bit Error Rate
+    int8_t rssi_dbm;                     // RSSI converted to dBm for easier interpretation
+    signal_strength_category_t category; // Signal strength category
 } csq_parsed_response_t;
 
 esp_err_t parse_csq_response(const char *response_str, csq_parsed_response_t *parsed_response, at_cmd_type_t cmd_type);
 const char *csq_rssi_to_str(csq_rssi_t rssi);
 const char *csq_ber_to_str(csq_ber_t ber);
 int8_t csq_rssi_to_dbm(csq_rssi_t rssi);
+signal_strength_category_t csq_rssi_dbm_to_strength_category(csq_rssi_t rssi);
+const char *signal_strength_category_to_str(signal_strength_category_t category);
 
 // --------------------- ATE -------------------------//
 // ----------------------------------------------------//
@@ -493,13 +507,13 @@ typedef enum
     CEREG_STATUS_MAX = 6
 } cereg_status_t;
 
-typedef enum
-{
-    CEREG_ACT_GSM = 0,    // GSM access technology
-    CEREG_ACT_LTE_M1 = 7, // LTE M1 A GB access technology
-    CEREG_ACT_LTE_NB = 9, // LTE NB S1 access technology
-    CEREG_ACT_MAX = 10
-} cereg_act_t;
+// typedef enum
+// {
+//     CEREG_ACT_GSM = 0,    // GSM access technology
+//     CEREG_ACT_LTE_M1 = 7, // LTE M1 A GB access technology
+//     CEREG_ACT_LTE_NB = 9, // LTE NB S1 access technology
+//     CEREG_ACT_MAX = 10
+// } cereg_act_t;
 
 // Structure to hold CEREG response data
 typedef struct

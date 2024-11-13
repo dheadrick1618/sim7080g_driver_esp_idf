@@ -120,3 +120,53 @@ typedef struct
     at_cmd_info_t write;
     at_cmd_info_t execute;
 } at_cmd_t;
+
+// TODO - DEAL WITH DEPENDENCY LOOP AND SOME DEFINES IN THE 'AT CMD RESPONSE' FILE THAT MAYBE SHOULD BE HERE
+
+typedef enum
+{
+    SIGNAL_STRENGTH_NONE = 0,
+    SIGNAL_STRENGTH_POOR = 1,
+    SIGNAL_STRENGTH_FAIR = 2,
+    SIGNAL_STRENGTH_GOOD = 3,
+    SIGNAL_STRENGTH_EXCELLENT = 4,
+    SIGNAL_STRENGTH_MAX = 5
+} signal_strength_category_t;
+
+typedef enum
+{
+    CEREG_ACT_GSM = 0,    // GSM access technology
+    CEREG_ACT_LTE_M1 = 7, // LTE M1 A GB access technology
+    CEREG_ACT_LTE_NB = 9, // LTE NB S1 access technology
+    CEREG_ACT_MAX = 10
+} cereg_act_t;
+
+typedef struct
+{
+    struct
+    {
+        int8_t rssi_dbm;                     // Signal strength in dBm
+        signal_strength_category_t category; // Signal quality category
+        uint8_t ber;                         // Bit error rate
+    } signal_info;
+
+    struct
+    {
+        bool is_registered;      // Network registration status
+        bool is_roaming;         // Whether device is roaming
+        char operator_name[32];  // Network operator name
+        cereg_act_t access_tech; // Access technology (LTE-M, NB-IoT, etc)
+        char tac[5];             // Tracking Area Code
+        char cell_id[5];         // Cell ID
+    } network_info;
+
+    struct
+    {
+        bool pdp_active;     // Whether PDP context is active
+        char ip_address[16]; // Assigned IP address
+        char apn[100];       // Access Point Name being used
+    } connection_info;
+
+    // Add timestamp or uptime if available
+    uint32_t uptime_seconds; // Device uptime in seconds
+} device_status_t;

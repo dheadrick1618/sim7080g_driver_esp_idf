@@ -217,6 +217,39 @@ esp_err_t sim7080g_set_functionality(const sim7080g_handle_t *handle, cfun_funct
     return ESP_OK;
 }
 
+esp_err_t sim7080g_get_functionality(const sim7080g_handle_t *handle, cfun_functionality_t *fun_level_out)
+{
+    if (handle == NULL || fun_level_out == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_LOGI(TAG, "Sending: GET phone functionality level command");
+
+    cfun_parsed_response_t response = {0};
+
+    static const at_cmd_handler_config_t config = {
+        .parser = cfun_parser_wrapper,
+        .timeout_ms = 5000U,
+        .retry_delay_ms = 1000U};
+
+    esp_err_t ret = send_at_cmd_with_parser(
+        handle,
+        &AT_CFUN,
+        AT_CMD_TYPE_READ,
+        NULL,
+        &response,
+        &config);
+
+    if (ret == ESP_OK)
+    {
+        *fun_level_out = response.functionality;
+        ESP_LOGI(TAG, "Phone functionality level: %s", cfun_functionality_to_str(response.functionality));
+    }
+
+    return ret;
+}
+
 // Check signal quality (CSQ) - used by driver 'is physical layer connected' fxn which verifies signal strength is acceptable
 esp_err_t sim7080g_check_signal_quality(const sim7080g_handle_t *handle, int8_t *rssi_dbm_out, uint8_t *ber_out)
 {
@@ -246,9 +279,16 @@ esp_err_t sim7080g_check_signal_quality(const sim7080g_handle_t *handle, int8_t 
     {
         *rssi_dbm_out = response.rssi_dbm;
         *ber_out = (uint8_t)response.ber;
-        ESP_LOGI(TAG, "Signal Quality - RSSI: %s, BER: %s",
-                 csq_rssi_to_str(response.rssi),
+        ESP_LOGI(TAG, "Signal Quality - RSSI: %d dBm (%s), BER: %s",
+                 response.rssi_dbm,
+                 signal_strength_category_to_str(response.category),
                  csq_ber_to_str(response.ber));
+
+        if (response.category <= SIGNAL_STRENGTH_POOR)
+        {
+            ESP_LOGW(TAG, "Signal strength is %s - may affect reliability",
+                     signal_strength_category_to_str(response.category));
+        }
     }
 
     return ret;

@@ -434,3 +434,254 @@ esp_err_t sim7080g_mqtt_connect(const sim7080g_handle_t *sim7080g_handle)
     ESP_LOGI(TAG, "Connected to MQTT broker");
     return ESP_OK;
 }
+
+// MQTT disconnect
+
+// MQTT publish
+
+// MQTT subscribe
+
+// Check if the physical layer is connected
+esp_err_t sim7080g_is_physical_layer_connected(const sim7080g_handle_t *sim7080g_handle, bool *connected_out)
+{
+    if ((sim7080g_handle == NULL) || (connected_out == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err;
+    *connected_out = false;
+    const char *TAG = "Physical Layer Check";
+
+    /* Check 1: SIM Card Status
+     * AT Command: AT+CPIN?
+     * Checks if SIM is present and ready */
+    cpin_status_t sim_status;
+    err = sim7080g_check_sim_status(sim7080g_handle, &sim_status);
+    if ((err != ESP_OK) || (sim_status != CPIN_STATUS_READY))
+    {
+        ESP_LOGE(TAG, "SIM not ready: %s",
+                 (err == ESP_OK) ? cpin_status_to_str(sim_status) : "Check failed");
+        return err;
+    }
+
+    /* Check 2: Signal Quality
+     * AT Command: AT+CSQ
+     * Ensures signal is strong enough for operation */
+    int8_t rssi_dbm;
+    uint8_t ber;
+    err = sim7080g_check_signal_quality(sim7080g_handle, &rssi_dbm, &ber);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Signal quality check failed");
+        return err;
+    }
+
+    /* Signal strength criteria:
+     * - RSSI should not be 99 (not detectable)
+     * - RSSI should be better than -100 dBm for reliable operation */
+    if ((rssi_dbm == 99) || (rssi_dbm) < -100)
+    {
+        ESP_LOGW(TAG, "Signal too weak or not detectable: RSSI=%d dBm", rssi_dbm);
+        return ESP_OK; // Not an error, just not connected
+    }
+
+    /* Check 3: EPS Network Registration Status
+     * AT Command: AT+CEREG?
+     * Verifies registration with the LTE network */
+    cereg_parsed_response_t cereg_response = {0};
+    err = sim7080g_get_eps_network_reg_info(sim7080g_handle, &cereg_response);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Network registration check failed");
+        return err;
+    }
+
+    if ((cereg_response.status != CEREG_STATUS_REGISTERED_HOME) &&
+        (cereg_response.status != CEREG_STATUS_REGISTERED_ROAMING))
+    {
+        ESP_LOGW(TAG, "Not registered to network: %s",
+                 cereg_status_to_str(cereg_response.status));
+        return ESP_OK; // Not an error, just not connected
+    }
+
+    /* Log the network technology type if available */
+    if (cereg_response.has_location_info)
+    {
+        ESP_LOGI(TAG, "Connected using: %s",
+                 cereg_act_to_str(cereg_response.act));
+    }
+
+    /* Check 4: Radio Functionality
+     * AT Command: AT+CFUN?
+     * Verifies radio is in full functional state */
+    cfun_functionality_t device_functionality;
+    err = sim7080g_get_functionality(sim7080g_handle, &device_functionality);
+    if ((err != ESP_OK) || (device_functionality != CFUN_FUNCTIONALITY_FULL))
+    {
+        ESP_LOGE(TAG, "Radio not in full functionality mode: %s",
+                 (err == ESP_OK) ? cfun_functionality_to_str(device_functionality)
+                                 : "Check failed");
+        return err;
+    }
+
+    /* All physical layer checks passed */
+    *connected_out = true;
+    ESP_LOGI(TAG, "Physical layer connection verified");
+    return ESP_OK;
+}
+
+esp_err_t sim7080g_get_device_status(sim7080g_handle_t *handle, device_status_t *status)
+{
+    if (handle == NULL || status == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err;
+    memset(status, 0, sizeof(device_status_t));
+
+    // 1. Get Signal Quality Information
+    err = sim7080g_check_signal_quality(handle, &status->signal_info.rssi_dbm,
+                                        &status->signal_info.ber);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to get signal quality");
+        return err;
+    }
+    status->signal_info.category = csq_rssi_dbm_to_strength_category(status->signal_info.rssi_dbm);
+
+    // 2. Get Network Registration Status
+    cereg_parsed_response_t cereg_status;
+    err = sim7080g_get_eps_network_reg_info(handle, &cereg_status);
+    if (err == ESP_OK)
+    {
+        status->network_info.is_registered =
+            (cereg_status.status == CEREG_STATUS_REGISTERED_HOME ||
+             cereg_status.status == CEREG_STATUS_REGISTERED_ROAMING);
+        status->network_info.is_roaming =
+            (cereg_status.status == CEREG_STATUS_REGISTERED_ROAMING);
+
+        if (cereg_status.has_location_info)
+        {
+            strncpy(status->network_info.tac, cereg_status.tac, sizeof(status->network_info.tac) - 1);
+            strncpy(status->network_info.cell_id, cereg_status.ci, sizeof(status->network_info.cell_id) - 1);
+            status->network_info.access_tech = cereg_status.act;
+        }
+    }
+
+    // 3. Get Operator Information
+    cops_parsed_response_t cops_info;
+    err = sim7080g_get_operator_info(handle, &cops_info);
+    if (err == ESP_OK)
+    {
+        strncpy(status->network_info.operator_name, cops_info.operator_name,
+                sizeof(status->network_info.operator_name) - 1);
+    }
+
+    // 4. Get PDP/Connection Status
+    cnact_parsed_response_t cnact_status;
+    err = sim7080g_get_network_status(handle, &cnact_status);
+    if (err == ESP_OK)
+    {
+        for (uint8_t i = 0; i < cnact_status.num_contexts; i++)
+        {
+            if (cnact_status.contexts[i].status == CNACT_STATUS_ACTIVATED)
+            {
+                status->connection_info.pdp_active = true;
+                strncpy(status->connection_info.ip_address,
+                        cnact_status.contexts[i].ip_address,
+                        sizeof(status->connection_info.ip_address) - 1);
+                break;
+            }
+        }
+    }
+
+    // 5. Get APN Information
+    cgnapn_parsed_response_t apn_info;
+    err = sim7080g_get_network_apn(handle, &apn_info);
+    if (err == ESP_OK && apn_info.status == CGNAPN_APN_PROVIDED)
+    {
+        strncpy(status->connection_info.apn, apn_info.network_apn,
+                sizeof(status->connection_info.apn) - 1);
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t sim7080g_publish_device_status(sim7080g_handle_t *handle, const char *base_topic)
+{
+    if (handle == NULL || base_topic == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    device_status_t status;
+    esp_err_t err = sim7080g_get_device_status(handle, &status);
+    if (err != ESP_OK)
+    {
+        return err;
+    }
+
+    // Create buffers with safe sizes
+    char message[1024];        // Increased buffer size
+    char network_info[384];    // Increased for safety
+    char connection_info[384]; // Increased for safety
+    int written;
+
+    // Format network info safely
+    written = snprintf(network_info, sizeof(network_info),
+                       "{\"registered\":%s,\"roaming\":%s,\"operator\":\"%s\","
+                       "\"technology\":\"%s\",\"tac\":\"%s\",\"cell_id\":\"%s\"}",
+                       status.network_info.is_registered ? "true" : "false",
+                       status.network_info.is_roaming ? "true" : "false",
+                       status.network_info.operator_name,
+                       cereg_act_to_str(status.network_info.access_tech),
+                       status.network_info.tac,
+                       status.network_info.cell_id);
+
+    if (written < 0 || written >= sizeof(network_info))
+    {
+        ESP_LOGE("Telemetry", "Network info buffer overflow");
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    // Format connection info safely
+    written = snprintf(connection_info, sizeof(connection_info),
+                       "{\"pdp_active\":%s,\"ip_address\":\"%s\",\"apn\":\"%s\"}",
+                       status.connection_info.pdp_active ? "true" : "false",
+                       status.connection_info.ip_address,
+                       status.connection_info.apn);
+
+    if (written < 0 || written >= sizeof(connection_info))
+    {
+        ESP_LOGE("Telemetry", "Connection info buffer overflow");
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    // Combine everything safely
+    written = snprintf(message, sizeof(message),
+                       "{\"signal\":{\"rssi_dbm\":%d,\"category\":\"%s\",\"ber\":%u},"
+                       "\"network\":%s,\"connection\":%s}",
+                       status.signal_info.rssi_dbm,
+                       signal_strength_category_to_str(status.signal_info.category),
+                       status.signal_info.ber,
+                       network_info,
+                       connection_info);
+
+    if (written < 0 || written >= sizeof(message))
+    {
+        ESP_LOGE("Telemetry", "Message buffer overflow");
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    // Publish to single topic
+    err = sim7080g_mqtt_publish(handle, base_topic, message, 0, false);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE("Telemetry", "Failed to publish device status: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    return ESP_OK;
+}
