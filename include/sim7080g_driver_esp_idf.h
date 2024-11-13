@@ -25,26 +25,26 @@ esp_err_t sim7080g_connect_to_network_bearer(const sim7080g_handle_t *sim7080g_h
 // Connect to MQTT broker
 esp_err_t sim7080g_mqtt_connect(const sim7080g_handle_t *sim7080g_handle);
 
-// // Disconnect from MQTT broker
-// esp_err_t sim7080g_mqtt_disconnect_from_broker(const sim7080g_handle_t *sim7080g_handle);
+// Disconnect from MQTT broker
+esp_err_t sim7080g_mqtt_disconnect(const sim7080g_handle_t *sim7080g_handle);
 
+// This layer should PROBABLY NOT expose mqtt publish - this is done  inside these fxns called by the user
 // // Publish to MQTT broker
-// esp_err_t sim7080g_mqtt_publish(const sim7080g_handle_t *sim7080g_handle,
-//                                 const char *topic,
-//                                 const char *message,
-//                                 uint8_t qos,
-//                                 bool retain);
-
+//// esp_err_t sim7080g_mqtt_publish(const sim7080g_handle_t *sim7080g_handle,
+////                                 const char *topic,
+////                                 const char *message,
+////                                 uint8_t qos,
+////                                 bool retain);
 // // Subscribe to MQTT broker
 // //// esp_err_t sim7080g_mqtt_subscribe()
 
 // // ---------- FXNS to check connection status of device at various layers of the stack --------- //
 esp_err_t sim7080g_is_physical_layer_connected(const sim7080g_handle_t *sim7080g_handle, bool *connected_out);
-// esp_err_t sim7080g_is_data_link_layer_connected(const sim7080g_handle_t *sim7080g_handle, bool *connected);
-// esp_err_t sim7080g_is_network_layer_connected(const sim7080g_handle_t *sim7080g_handle, bool *connected);
+//// esp_err_t sim7080g_is_data_link_layer_connected(const sim7080g_handle_t *sim7080g_handle, bool *connected);
+esp_err_t sim7080g_is_network_layer_connected(const sim7080g_handle_t *sim7080g_handle, bool *connected);
 // //// esp_err_t sim7080g_is_transport_layer_connected(const sim7080g_handle_t *sim7080g_handle, bool *connected);
 // // TODO - Implement session layer check once SSL is implemented
-// esp_err_t sim7080g_is_application_layer_connected(const sim7080g_handle_t *sim7080g_handle, bool *connected);
+esp_err_t sim7080g_is_application_layer_connected(const sim7080g_handle_t *sim7080g_handle, bool *connected);
 
 esp_err_t sim7080g_get_device_status(sim7080g_handle_t *handle, device_status_t *status);
 esp_err_t sim7080g_publish_device_status(sim7080g_handle_t *handle, const char *base_topic);

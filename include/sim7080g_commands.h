@@ -74,6 +74,9 @@ esp_err_t sim7080g_set_mqtt_param(const sim7080g_handle_t *handle,
 // Connect to MQTT broker
 esp_err_t sim7080g_mqtt_connect_to_broker(const sim7080g_handle_t *handle);
 
+// Disconnect from MQTT broker
+esp_err_t sim7080g_mqtt_disconnect_from_broker(const sim7080g_handle_t *handle);
+
 // Publish to MQTT broker
 esp_err_t sim7080g_mqtt_publish(const sim7080g_handle_t *handle,
                                 const char *topic,

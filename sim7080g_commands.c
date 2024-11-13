@@ -91,6 +91,13 @@ static esp_err_t cereg_parser_wrapper(const char *response, void *parsed_respons
     return parse_cereg_response(response, (cereg_parsed_response_t *)parsed_response, cmd_type);
 }
 
+static esp_err_t smdisc_parser_wrapper(const char *response,
+                                       void *parsed_response,
+                                       at_cmd_type_t cmd_type)
+{
+    return parse_smdisc_response(response, (smdisc_parsed_response_t *)parsed_response, cmd_type);
+}
+
 // --------------------------------------- FXNS to use SIM7080G AT Commands --------------------------------------- //
 // ----------------------------- (main driver uses these fxns inside its user exposed fxns) ------------------- //
 
@@ -941,8 +948,56 @@ esp_err_t sim7080g_mqtt_connect_to_broker(const sim7080g_handle_t *handle)
     }
     return ESP_FAIL;
 }
-// Disconnect from MQTT broker
 
+// Disconnect from MQTT broker
+esp_err_t sim7080g_mqtt_disconnect_from_broker(const sim7080g_handle_t *handle)
+{
+    if (handle == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    static const char *TAG = "sim7080g_mqtt_disconnect";
+    ESP_LOGI(TAG, "Disconnecting from MQTT broker");
+
+    // Configure command handling
+    static const at_cmd_handler_config_t config = {
+        .parser = smdisc_parser_wrapper,
+        .timeout_ms = 5000U,    // 5 second timeout should be sufficient
+        .retry_delay_ms = 1000U // 1 second between retries
+    };
+
+    // Send disconnect command
+    smdisc_parsed_response_t parsed_response = {0};
+    esp_err_t err = send_at_cmd_with_parser(
+        handle,
+        &AT_SMDISC,
+        AT_CMD_TYPE_EXECUTE,
+        NULL, // No arguments needed for execute command
+        &parsed_response,
+        &config);
+
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to send disconnect command");
+        return err;
+    }
+
+    // Check response status
+    if (parsed_response.status == SMDISC_STATUS_ERROR)
+    {
+        ESP_LOGE(TAG, "Disconnect command failed");
+        return ESP_FAIL;
+    }
+    else if (parsed_response.status == SMDISC_STATUS_TIMEOUT)
+    {
+        ESP_LOGE(TAG, "Disconnect command timed out");
+        return ESP_ERR_TIMEOUT;
+    }
+
+    ESP_LOGI(TAG, "Successfully disconnected from MQTT broker");
+    return ESP_OK;
+}
 // Publish to MQTT broker
 esp_err_t sim7080g_mqtt_publish(const sim7080g_handle_t *handle,
                                 const char *topic,
@@ -1065,8 +1120,6 @@ esp_err_t sim7080g_mqtt_check_connection_status(const sim7080g_handle_t *handle,
 }
 
 // Subscribe to MQTT broker
-
-// Disconnect from MQTT broker
 
 // Get EPS network registration status (CEREG)
 esp_err_t sim7080g_get_eps_network_reg_info(const sim7080g_handle_t *handle,

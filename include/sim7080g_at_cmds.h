@@ -263,7 +263,7 @@ extern const at_cmd_t AT_CEREG;
 // /// @note This is an execution command with no parameters
 // /// @note No read or test commands are available for this command
 // /// @note The disconnection is performed immediately upon execution of this command
-// extern const at_cmd_t AT_SMDISC;
+extern const at_cmd_t AT_SMDISC;
 
 // /// @brief Query TCP/UDP Connection Status - Check current connection status
 // extern const at_cmd_t AT_CASTATE;

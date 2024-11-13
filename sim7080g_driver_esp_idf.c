@@ -230,6 +230,30 @@ esp_err_t sim7080g_init(sim7080g_handle_t *sim7080g_handle)
     }
     vTaskDelay(pdMS_TO_TICKS(500)); // Give UART time to init
 
+    ate_mode_t echo_mode = ATE_MODE_OFF;
+    esp_err_t ret = sim7080g_set_echo_mode(sim7080g_handle, echo_mode);
+    if (ret != ESP_OK)
+    {
+        printf("Failed to disable command echo\n");
+        return ret;
+    }
+    else
+    {
+        printf("Command echo disabled\n");
+    }
+
+    cmee_mode_t error_mode = CMEE_MODE_VERBOSE;
+    ret = sim7080g_set_error_report_mode(sim7080g_handle, error_mode);
+    if (ret != ESP_OK)
+    {
+        printf("Failed to enable verbose error reporting\n");
+        return ret;
+    }
+    else
+    {
+        printf("Verbose error reporting enabled\n");
+    }
+
     err = config_device_mqtt_params(sim7080g_handle);
     if (err != ESP_OK)
     {
@@ -435,9 +459,39 @@ esp_err_t sim7080g_mqtt_connect(const sim7080g_handle_t *sim7080g_handle)
     return ESP_OK;
 }
 
-// MQTT disconnect
+esp_err_t sim7080g_mqtt_disconnect(const sim7080g_handle_t *sim7080g_handle)
+{
+    if (sim7080g_handle == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+    const char *TAG = "SIM7080G MQTT Disconnect";
 
-// MQTT publish
+    // Check if connected already - if so do not disconnect
+    smstate_status_t state;
+    esp_err_t err = sim7080g_mqtt_check_connection_status(sim7080g_handle, &state);
+    if (err != ESP_OK)
+    {
+        ESP_LOGI(TAG, "Failed to check MQTT connection status");
+        return ESP_FAIL;
+    }
+    if (state == SMSTATE_STATUS_DISCONNECTED)
+    {
+        ESP_LOGI(TAG, "Already disconnected from MQTT broker");
+        return ESP_OK;
+    }
+
+    // Disconnect from MQTT broker
+    err = sim7080g_mqtt_disconnect_from_broker(sim7080g_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to disconnect from MQTT broker");
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "Disconnected from MQTT broker");
+    return ESP_OK;
+}
 
 // MQTT subscribe
 
@@ -528,6 +582,81 @@ esp_err_t sim7080g_is_physical_layer_connected(const sim7080g_handle_t *sim7080g
     /* All physical layer checks passed */
     *connected_out = true;
     ESP_LOGI(TAG, "Physical layer connection verified");
+    return ESP_OK;
+}
+
+// Check is network layer is connected
+esp_err_t sim7080g_is_network_layer_connected(const sim7080g_handle_t *sim7080g_handle, bool *connected)
+{
+    if ((sim7080g_handle == NULL) || (connected == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err;
+    *connected = false;
+
+    /* Check 1: GPRS Attachment Status
+     * AT Command: AT+CGATT?
+     * Verifies device is attached to GPRS service */
+    cgatt_state_t gprs_state;
+    err = sim7080g_get_gprs_attachment(sim7080g_handle, &gprs_state);
+    if ((err != ESP_OK) || (gprs_state != CGATT_STATE_ATTACHED))
+    {
+        return err;
+    }
+
+    /* Check 2: PDP Context Status
+     * AT Command: AT+CNACT?
+     * Verifies PDP context is activated and we have an IP address */
+    cnact_parsed_response_t pdp_status;
+    err = sim7080g_get_network_status(sim7080g_handle, &pdp_status);
+    if (err != ESP_OK)
+    {
+        return err;
+    }
+
+    /* Look for any activated PDP context */
+    for (uint8_t i = 0; i < pdp_status.num_contexts; i++)
+    {
+        if (pdp_status.contexts[i].status == CNACT_STATUS_ACTIVATED)
+        {
+            *connected = true;
+            break;
+        }
+    }
+
+    return ESP_OK;
+}
+
+// Check if the application layer is connected
+esp_err_t sim7080g_is_application_layer_connected(const sim7080g_handle_t *sim7080g_handle, bool *connected)
+{
+    if ((sim7080g_handle == NULL) || (connected == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err;
+    *connected = false;
+
+    /* Check MQTT Connection Status
+     * AT Command: AT+SMSTATE?
+     * Verifies MQTT connection to broker is active */
+    smstate_parsed_response_t mqtt_status;
+    err = sim7080g_mqtt_check_connection_status(sim7080g_handle, &mqtt_status.status);
+    if (err != ESP_OK)
+    {
+        return err;
+    }
+
+    /* Consider both connected states as valid */
+    if ((mqtt_status.status == SMSTATE_STATUS_CONNECTED) ||
+        (mqtt_status.status == SMSTATE_STATUS_CONNECTED_WITH_SESSION))
+    {
+        *connected = true;
+    }
+
     return ESP_OK;
 }
 

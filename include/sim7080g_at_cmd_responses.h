@@ -442,6 +442,23 @@ typedef struct
 // Add function declarations to sim7080g_at_cmd_responses.h
 esp_err_t parse_smconn_response(const char *response_str, smconn_parsed_response_t *parsed_response, at_cmd_type_t cmd_type);
 
+// --------------------- SMDISC -------------------------//
+// ----------------------------------------------------//
+typedef enum
+{
+    SMDISC_STATUS_SUCCESS = 0,
+    SMDISC_STATUS_ERROR,
+    SMDISC_STATUS_TIMEOUT,
+    SMDISC_STATUS_MAX
+} smdisc_status_t;
+
+typedef struct
+{
+    smdisc_status_t status;
+} smdisc_parsed_response_t;
+
+esp_err_t parse_smdisc_response(const char *response_str, smdisc_parsed_response_t *parsed_response, at_cmd_type_t cmd_type);
+
 // --------------------- SMPUB -------------------------//
 // ----------------------------------------------------//
 

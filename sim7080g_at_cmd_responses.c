@@ -1386,6 +1386,36 @@ esp_err_t parse_smconn_response(const char *response_str, smconn_parsed_response
     return ESP_ERR_INVALID_RESPONSE;
 }
 
+// --------------------- SMDISC -------------------------//
+// ----------------------------------------------------//
+
+esp_err_t parse_smdisc_response(const char *response_str,
+                                smdisc_parsed_response_t *parsed_response,
+                                at_cmd_type_t cmd_type)
+{
+    if ((response_str == NULL) || (parsed_response == NULL))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // This is an execute command, so we just need to check for OK/ERROR
+    if (cmd_type == AT_CMD_TYPE_EXECUTE)
+    {
+        if (strstr(response_str, "OK") != NULL)
+        {
+            parsed_response->status = SMDISC_STATUS_SUCCESS;
+            return ESP_OK;
+        }
+        else if (strstr(response_str, "ERROR") != NULL)
+        {
+            parsed_response->status = SMDISC_STATUS_ERROR;
+            return ESP_OK;
+        }
+    }
+
+    return ESP_ERR_INVALID_RESPONSE;
+}
+
 // --------------------- SMPUB -------------------------//
 // ----------------------------------------------------//
 esp_err_t parse_smpub_response(const char *response_str, smpub_parsed_response_t *parsed_response, at_cmd_type_t cmd_type)

@@ -180,6 +180,16 @@ const at_cmd_t AT_CEREG = {
     .write = {WRITE_CMD("AT+CEREG"), "OK"},
     .execute = {0}};
 
+const at_cmd_t AT_SMDISC = {
+    .name = "AT+SMDISC",
+    .description = "MQTT Disconnect - Terminate the MQTT broker connection",
+    .test = {0},  // No test command
+    .read = {0},  // No read command
+    .write = {0}, // No write command
+    .execute = {
+        EXECUTE_CMD("AT+SMDISC"),
+        "OK"}};
+
 // const at_cmd_t AT_SMSUB = {
 //     .name = "AT+SMSUB",
 //     .description = "MQTT Subscribe - Subscribe to specified MQTT topic with QoS level",
@@ -203,14 +213,6 @@ const at_cmd_t AT_CEREG = {
 //     .read = {0},
 //     .write = {WRITE_CMD("AT+SMUNSUB"), "OK"},
 //     .execute = {0}};
-
-// const at_cmd_t AT_SMDISC = {
-//     .name = "AT+SMDISC",
-//     .description = "MQTT Disconnect - Terminate active MQTT broker connection",
-//     .test = {0},
-//     .read = {0},
-//     .write = {0},
-//     .execute = {EXECUTE_CMD("AT+SMDISC"), "OK"}};
 
 // TODO - Implement this if its found relevant later to check  transport layer connection
 //  const at_cmd_t AT_CASTATE = {
