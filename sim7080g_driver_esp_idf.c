@@ -2,6 +2,7 @@
 #include <esp_err.h>
 #include <esp_log.h>
 #include <string.h>
+#include <ctype.h> // For 'isprint' fxn
 
 #include "sim7080g_uart.h"
 #include "sim7080g_driver_esp_idf.h"
@@ -200,16 +201,145 @@ static esp_err_t config_device_mqtt_params(const sim7080g_handle_t *handle)
 
     return ESP_OK;
 }
+
+static void process_smsub_message(sim7080g_handle_t *handle, const char *message)
+{
+    ESP_LOGI(TAG, "Processing SMSUB message: %s", message);
+    char topic[MQTT_PACKET_MAX_TOPIC_CHARS] = {0};
+    char payload[MQTT_PACKET_MAX_DATA_CHARS] = {0};
+
+    // Parse "+SMSUB: \"topic\",\"message\""
+    if (sscanf(message, "+SMSUB: \"%[^\"]\",\"%[^\"]\"", topic, payload) == 2)
+    {
+        // Find matching subscription and invoke callback
+        for (int i = 0; i < MAX_MQTT_SUBSCRIPTIONS; i++)
+        {
+            mqtt_subscription_t *sub = &handle->subscription_manager.subscriptions[i];
+            if (sub->active && strcmp(sub->topic, topic) == 0)
+            {
+                sub->callback(topic, payload, strlen(payload));
+                break;
+            }
+        }
+    }
+}
+
+static void uart_reader_task(void *pvParameters)
+{
+    sim7080g_handle_t *handle = (sim7080g_handle_t *)pvParameters;
+    char buffer[AT_CMD_RESPONSE_MAX_LEN];
+    size_t buf_pos = 0;
+
+    ESP_LOGI(TAG, "UART reader task started");
+
+    while (1)
+    {
+        if (handle->uart_state == UART_STATE_IDLE)
+        {
+            int bytes_read = uart_read_bytes(handle->uart_config.port_num,
+                                             (uint8_t *)&buffer[buf_pos],
+                                             1,
+                                             pdMS_TO_TICKS(10));
+            if (bytes_read > 0)
+            {
+                // Print raw byte in hex and as char if printable
+                unsigned char current_byte = (unsigned char)buffer[buf_pos];
+                ESP_LOGI(TAG, "Received byte [0x%02X] '%c'",
+                         current_byte,
+                         isprint(current_byte) ? current_byte : '.');
+
+                buf_pos++;
+                buffer[buf_pos] = '\0';
+
+                // Periodically log accumulated buffer for debugging
+                if (buf_pos % 10 == 0)
+                {
+                    ESP_LOGI(TAG, "Current buffer contents (%d bytes): %s",
+                             buf_pos, buffer);
+                    // Also print hex dump
+                    ESP_LOGI(TAG, "Buffer hex dump:");
+                    for (size_t i = 0; i < buf_pos; i++)
+                    {
+                        printf("%02X ", (unsigned char)buffer[i]);
+                        if ((i + 1) % 16 == 0)
+                            printf("\n");
+                    }
+                    printf("\n");
+                }
+
+                // Look for +SMSUB: anywhere in the accumulated buffer
+                char *smsub_pos = strstr(buffer, "+SMSUB:");
+                if (smsub_pos)
+                {
+                    ESP_LOGI(TAG, "Found MQTT message marker! Buffer before: %s", buffer);
+
+                    // Move the SMSUB message to start of buffer if it's not already there
+                    if (smsub_pos != buffer)
+                    {
+                        size_t remaining_len = strlen(smsub_pos);
+                        memmove(buffer, smsub_pos, remaining_len);
+                        buf_pos = remaining_len;
+                        buffer[buf_pos] = '\0';
+                        ESP_LOGI(TAG, "Buffer after move: %s", buffer);
+                    }
+
+                    handle->uart_state = UART_STATE_READING_MQTT;
+                }
+
+                // If we're reading an MQTT message, look for message end
+                if (handle->uart_state == UART_STATE_READING_MQTT)
+                {
+                    // Look for end of message (either \r\n or \n)
+                    char *end = strstr(buffer, "\r\n");
+                    if (!end)
+                    {
+                        end = strchr(buffer, '\n');
+                    }
+
+                    if (end)
+                    {
+                        *(end + 1) = '\0'; // Include the newline in message
+                        ESP_LOGI(TAG, "Complete MQTT message received: %s", buffer);
+                        process_smsub_message(handle, buffer);
+                        buf_pos = 0;
+                        handle->uart_state = UART_STATE_IDLE;
+                        memset(buffer, 0, sizeof(buffer));
+                    }
+                }
+
+                // Prevent buffer overflow
+                if (buf_pos >= sizeof(buffer) - 2)
+                {
+                    ESP_LOGW(TAG, "Buffer full, resetting. Current contents:");
+                    ESP_LOGW(TAG, "%s", buffer);
+                    buf_pos = 0;
+                    handle->uart_state = UART_STATE_IDLE;
+                    memset(buffer, 0, sizeof(buffer));
+                }
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
 // ---------------------  EXTERNAL EXPOSED API FXNs  -------------------------//
 // Set the config member structs of the driver handler here - these values are then used during driver init and operation
 esp_err_t sim7080g_config(sim7080g_handle_t *sim7080g_handle,
                           const sim7080g_uart_config_t sim7080g_uart_config,
                           const sim7080g_mqtt_config_t sim7080g_mqtt_config)
 {
+
+    // Initialize handle to known state
+    memset(sim7080g_handle, 0, sizeof(sim7080g_handle_t));
+
     // TODO - validate config params
     sim7080g_handle->uart_config = sim7080g_uart_config;
 
     sim7080g_handle->mqtt_config = sim7080g_mqtt_config;
+
+    sim7080g_handle->uart_state = UART_STATE_IDLE;
+
+    sim7080g_handle->subscription_manager.subscription_count = 0;
 
     return ESP_OK;
 }
@@ -223,11 +353,9 @@ esp_err_t sim7080g_init(sim7080g_handle_t *sim7080g_handle)
         sim7080g_handle->uart_initialized = false;
         return err;
     }
-    else
-    {
-        ESP_LOGI(TAG, "UART initialized");
-        sim7080g_handle->uart_initialized = true;
-    }
+    ESP_LOGI(TAG, "UART initialized");
+    sim7080g_handle->uart_initialized = true;
+
     vTaskDelay(pdMS_TO_TICKS(500)); // Give UART time to init
 
     ate_mode_t echo_mode = ATE_MODE_OFF;
@@ -259,6 +387,26 @@ esp_err_t sim7080g_init(sim7080g_handle_t *sim7080g_handle)
     {
         ESP_LOGE(TAG, "Error configuring device MQTT params: %s", esp_err_to_name(err));
         return err;
+    }
+
+    sim7080g_handle->mqtt_initialized = true;
+
+    // Only start UART reader task after all initialization is complete
+    BaseType_t task_created = xTaskCreate(uart_reader_task,
+                                          "UART_Reader",
+                                          4096, // Stack size
+                                          sim7080g_handle,
+                                          4, // Priority
+                                          &sim7080g_handle->uart_reader_task);
+
+    if (task_created != pdPASS)
+    {
+        ESP_LOGE(TAG, "Failed to create UART reader task");
+        return ESP_FAIL;
+    }
+    else
+    {
+        ESP_LOGI(TAG, "UART reader task created");
     }
 
     ESP_LOGI(TAG, "SIM7080G Driver initialized");
@@ -436,14 +584,16 @@ esp_err_t sim7080g_mqtt_connect(const sim7080g_handle_t *sim7080g_handle)
         ESP_LOGI(TAG, "Failed to check MQTT connection status");
         return ESP_FAIL;
     }
-    if (state == SMSTATE_STATUS_CONNECTED)
+    if (state == SMSTATE_STATUS_CONNECTED || state == SMSTATE_STATUS_CONNECTED_WITH_SESSION)
     {
-        ESP_LOGI(TAG, "Already connected to MQTT broker");
-        return ESP_OK;
-    }
-    else if (state == SMSTATE_STATUS_CONNECTED_WITH_SESSION)
-    {
-        ESP_LOGI(TAG, "Already connected to MQTT broker with session");
+        // ESP_LOGI(TAG, "Already connected to MQTT broker. Disconnecting to clean existing session and start fresh. (Topics need to be SUBSCRIBED to again!)");
+        // err = sim7080g_mqtt_disconnect(sim7080g_handle);
+        // if (err != ESP_OK)
+        // {
+        //     ESP_LOGE(TAG, "Failed to disconnect from MQTT broker");
+        //     return ESP_FAIL;
+        // }
+
         return ESP_OK;
     }
 

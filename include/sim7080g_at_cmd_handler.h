@@ -9,7 +9,7 @@
 #include "sim7080g_at_cmds.h"
 
 // --------- Used for the send AT command fxn --------- //
-#define AT_CMD_RESPONSE_MAX_LEN 256U
+
 #define AT_CMD_MAX_LEN 256U
 #define AT_CMD_MAX_RETRIES 6U // TODO - Maybe give each command a specific retry count
 

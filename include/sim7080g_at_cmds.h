@@ -242,7 +242,8 @@ extern const at_cmd_t AT_CEREG;
 // /// @return On failure:
 // ///   - ERROR
 // /// @note The test command returns the supported ranges for each parameter
-// extern const at_cmd_t AT_SMSUB;
+// MQTT subscribe to topic
+extern const at_cmd_t AT_SMSUB;
 
 // /// @brief Unsubscribe Packet - Unsubscribe from an MQTT topic
 // /// @details This command is used to unsubscribe from a previously subscribed MQTT topic.
@@ -251,8 +252,8 @@ extern const at_cmd_t AT_CEREG;
 // ///   - OK
 // /// @return On failure:
 // ///   - ERROR
-// /// @note The test command returns the maximum length of the topic parameter
-// extern const at_cmd_t AT_SMUNSUB;
+/// @note The test command returns the maximum length of the topic parameter
+extern const at_cmd_t AT_SMUNSUB;
 
 // /// @brief Disconnect MQTT - Terminate the MQTT connection
 // /// @details This command is used to disconnect from the MQTT broker.

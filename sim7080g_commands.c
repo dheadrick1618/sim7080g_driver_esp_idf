@@ -79,9 +79,7 @@ static esp_err_t smconn_parser_wrapper(const char *response, void *parsed_respon
     return parse_smconn_response(response, (smconn_parsed_response_t *)parsed_response, cmd_type);
 }
 
-static esp_err_t smstate_parser_wrapper(const char *response,
-                                        void *parsed_response,
-                                        at_cmd_type_t cmd_type)
+static esp_err_t smstate_parser_wrapper(const char *response, void *parsed_response, at_cmd_type_t cmd_type)
 {
     return parse_smstate_response(response, (smstate_parsed_response_t *)parsed_response, cmd_type);
 }
@@ -91,12 +89,20 @@ static esp_err_t cereg_parser_wrapper(const char *response, void *parsed_respons
     return parse_cereg_response(response, (cereg_parsed_response_t *)parsed_response, cmd_type);
 }
 
-static esp_err_t smdisc_parser_wrapper(const char *response,
-                                       void *parsed_response,
-                                       at_cmd_type_t cmd_type)
+static esp_err_t smdisc_parser_wrapper(const char *response, void *parsed_response, at_cmd_type_t cmd_type)
 {
     return parse_smdisc_response(response, (smdisc_parsed_response_t *)parsed_response, cmd_type);
 }
+
+static esp_err_t smsub_parser_wrapper(const char *response, void *parsed_response, at_cmd_type_t cmd_type)
+{
+    return parse_smsub_response(response, (smsub_parsed_response_t *)parsed_response, cmd_type);
+}
+
+// static esp_err_t smunsub_parser_wrapper(const char *response, void *parsed_response, at_cmd_type_t cmd_type)
+// {
+//     return parse_smunsub_response(response, (smunsub_parsed_response_t *)parsed_response, cmd_type);
+// }
 
 // --------------------------------------- FXNS to use SIM7080G AT Commands --------------------------------------- //
 // ----------------------------- (main driver uses these fxns inside its user exposed fxns) ------------------- //
@@ -1078,6 +1084,102 @@ esp_err_t sim7080g_mqtt_publish(const sim7080g_handle_t *handle,
     return ESP_OK;
 }
 
+// MQTT subscribe to topic
+esp_err_t sim7080g_mqtt_subscribe(sim7080g_handle_t *handle,
+                                  const char *topic,
+                                  uint8_t qos)
+//   mqtt_message_callback_t callback)
+{
+    if (!handle || !topic)
+    {
+        ESP_LOGE(TAG, "Invalid arguments");
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (handle->subscription_manager.subscription_count >= MAX_MQTT_SUBSCRIPTIONS)
+    {
+        ESP_LOGE(TAG, "Max MQTT subscriptions reached");
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (qos >= SMSUB_QOS_MAX)
+    {
+        ESP_LOGE(TAG, "Invalid QoS level");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    static const at_cmd_handler_config_t config = {
+        .parser = smsub_parser_wrapper,
+        .timeout_ms = 10000,
+        .retry_delay_ms = 1000};
+
+    char args[MQTT_PACKET_MAX_TOPIC_CHARS + 10];
+    snprintf(args, sizeof(args), "\"%s\",%u", topic, qos);
+
+    smsub_parsed_response_t response = {0};
+    esp_err_t err = send_at_cmd_with_parser(
+        handle,
+        &AT_SMSUB,
+        AT_CMD_TYPE_WRITE,
+        args,
+        &response,
+        &config);
+
+    if (err == ESP_OK)
+    {
+        mqtt_subscription_t *sub = &handle->subscription_manager.subscriptions[handle->subscription_manager.subscription_count];
+        strncpy(sub->topic, topic, MQTT_PACKET_MAX_TOPIC_CHARS - 1);
+        // sub->callback = callback;
+        sub->qos = qos;
+        sub->active = true;
+        handle->subscription_manager.subscription_count++;
+    }
+
+    return err;
+}
+
+// esp_err_t sim7080g_mqtt_unsubscribe(sim7080g_handle_t *handle,
+//                                     const char *topic) {
+//     if (!handle || !topic) {
+//         return ESP_ERR_INVALID_ARG;
+//     }
+
+//     static const at_cmd_handler_config_t config = {
+//         .parser = smunsub_parser_wrapper,
+//         .timeout_ms = 5000,
+//         .retry_delay_ms = 1000
+//     };
+
+//     char args[MQTT_PACKET_MAX_TOPIC_CHARS + 10];
+//     snprintf(args, sizeof(args), "\"%s\"", topic);
+
+//     smunsub_parsed_response_t response = {0};
+//     esp_err_t err = send_at_cmd_with_parser(
+//         handle,
+//         &AT_SMUNSUB,
+//         AT_CMD_TYPE_WRITE,
+//         args,
+//         &response,
+//         &config
+//     );
+
+//     if (err == ESP_OK) {
+//         // Find and remove subscription
+//         for (int i = 0; i < handle->subscription_manager.subscription_count; i++) {
+//             if (strcmp(handle->subscription_manager.subscriptions[i].topic, topic) == 0) {
+//                 // Move remaining subscriptions up if this isn't the last one
+//                 if (i < handle->subscription_manager.subscription_count - 1) {
+//                     memmove(&handle->subscription_manager.subscriptions[i],
+//                            &handle->subscription_manager.subscriptions[i + 1],
+//                            sizeof(mqtt_subscription_t) * (handle->subscription_manager.subscription_count - i - 1));
+//                 }
+//                 handle->subscription_manager.subscription_count--;
+//                 break;
+//             }
+//         }
+//     }
+
+//     return err;
+// }
+
 // Check MQTT broker connection status
 esp_err_t sim7080g_mqtt_check_connection_status(const sim7080g_handle_t *handle,
                                                 smstate_status_t *status_out)
@@ -1118,8 +1220,6 @@ esp_err_t sim7080g_mqtt_check_connection_status(const sim7080g_handle_t *handle,
 
     return ESP_OK;
 }
-
-// Subscribe to MQTT broker
 
 // Get EPS network registration status (CEREG)
 esp_err_t sim7080g_get_eps_network_reg_info(const sim7080g_handle_t *handle,

@@ -84,6 +84,16 @@ esp_err_t sim7080g_mqtt_publish(const sim7080g_handle_t *handle,
                                 uint8_t qos,
                                 bool retain);
 
+// Subscribe to an MQTT topic
+esp_err_t sim7080g_mqtt_subscribe(sim7080g_handle_t *handle,
+                                  const char *topic,
+                                  uint8_t qos);
+//   mqtt_message_callback_t callback);
+
+// Unsubscribe from an MQTT topic
+// esp_err_t sim7080g_mqtt_unsubscribe(const sim7080g_handle_t *handle,
+//                                     const char *topic);
+
 // Check MQTT connections status (SMSTATE)
 esp_err_t sim7080g_mqtt_check_connection_status(const sim7080g_handle_t *handle,
                                                 smstate_status_t *status_out);

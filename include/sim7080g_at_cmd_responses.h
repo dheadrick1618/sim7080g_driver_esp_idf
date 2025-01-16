@@ -483,6 +483,48 @@ typedef struct
 
 esp_err_t parse_smpub_response(const char *response_str, smpub_parsed_response_t *parsed_response, at_cmd_type_t cmd_type);
 
+// --------------------- SMSUB -------------------------//
+// ----------------------------------------------------//
+
+typedef enum
+{
+    SMSUB_QOS_AT_MOST_ONCE = 0,
+    SMSUB_QOS_AT_LEAST_ONCE = 1,
+    SMSUB_QOS_EXACTLY_ONCE = 2,
+    SMSUB_QOS_MAX = 3
+} smsub_qos_t;
+
+typedef enum
+{
+    SMSUB_STATUS_SUCCESS = 0,
+    SMSUB_STATUS_ERROR,
+    SMSUB_STATUS_MAX
+} smsub_status_t;
+
+typedef struct
+{
+    smsub_status_t status;
+} smsub_parsed_response_t;
+
+esp_err_t parse_smsub_response(const char *response_str, smsub_parsed_response_t *parsed_response, at_cmd_type_t cmd_type);
+
+// ------------------- SMUNSUB -------------------------//
+// ----------------------------------------------------//
+
+typedef enum
+{
+    SMUNSUB_STATUS_SUCCESS = 0,
+    SMUNSUB_STATUS_ERROR,
+    SMUNSUB_STATUS_MAX
+} smunsub_status_t;
+
+typedef struct
+{
+    smunsub_status_t status;
+} smunsub_parsed_response_t;
+
+esp_err_t parse_smunsub_response(const char *response_str, smunsub_parsed_response_t *parsed_response, at_cmd_type_t cmd_type);
+
 // --------------------- SMSTATE -------------------------//
 // ----------------------------------------------------//
 

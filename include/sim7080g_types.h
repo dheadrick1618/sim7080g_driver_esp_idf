@@ -5,6 +5,12 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "esp_err.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+
+#define AT_CMD_RESPONSE_MAX_LEN 256U
 
 /// @brief UART config struct defined by user of driver and passed to driver init
 /// @note TX and RX here are in the perspective of the SIM7080G, and thus they are swapped in the perspecive of the ESP32
@@ -77,6 +83,31 @@ typedef struct
     bool async_mode;
 } mqtt_parameters_t;
 
+typedef enum
+{
+    UART_STATE_IDLE = 0,
+    UART_STATE_AT_COMMAND = 1,   // AT command sent, waiting for response
+    UART_STATE_READING_MQTT = 2, // Currently reading an MQTT subscription message
+    UART_STATE_READING_AT = 3    // Currently reading an AT command response
+} uart_state_t;
+
+#define MAX_MQTT_SUBSCRIPTIONS 10
+typedef void (*mqtt_message_callback_t)(const char *topic, const char *message, size_t len);
+
+typedef struct
+{
+    char topic[MQTT_PACKET_MAX_TOPIC_CHARS];
+    mqtt_message_callback_t callback;
+    uint8_t qos;
+    bool active;
+} mqtt_subscription_t;
+
+typedef struct
+{
+    mqtt_subscription_t subscriptions[MAX_MQTT_SUBSCRIPTIONS];
+    uint8_t subscription_count;
+} mqtt_subscription_manager_t;
+
 // Core handle structure used by all user exposed API fxns
 typedef struct sim7080g_handle_t
 {
@@ -84,6 +115,9 @@ typedef struct sim7080g_handle_t
     sim7080g_mqtt_config_t mqtt_config;
     bool uart_initialized;
     bool mqtt_initialized;
+    uart_state_t uart_state;
+    TaskHandle_t uart_reader_task;
+    mqtt_subscription_manager_t subscription_manager;
 } sim7080g_handle_t;
 
 // --------------------- COMMON AT Command Definitions -------------------------//
